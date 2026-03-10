@@ -32,6 +32,7 @@ const OidcAuthGuard = ({ children }: React.PropsWithChildren) => {
 
   // Don't redirect — the user may have a valid password session cookie.
   // The 401 redirect middleware handles expired sessions.
+
   return children;
 };
 

@@ -142,7 +142,7 @@ const SignOutMenuItem = () => {
         return (
           <>
             <MenuDivider />
-            <MenuItem fontWeight="medium" onClick={logoutAndRedirectOrThrow}>
+            <MenuItem fontWeight="medium" onClick={handleLogout}>
               Sign out
             </MenuItem>
           </>
