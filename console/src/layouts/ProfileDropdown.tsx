@@ -32,6 +32,7 @@ import { getCurrentTenant, useCurrentOrganization } from "~/api/auth";
 import { logout, logoutAndRedirectOrThrow } from "~/api/materialize/auth";
 import ThemeSwitcher from "~/components/ThemeSwitcher";
 import { AppConfigSwitch } from "~/config/AppConfigSwitch";
+import { getOidcUserManager } from "~/external-library-wrappers/oidc";
 import {
   AdminPortal,
   AuthActions,
