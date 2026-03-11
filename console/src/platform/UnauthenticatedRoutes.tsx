@@ -11,12 +11,10 @@ import React from "react";
 import { Navigate, Route } from "react-router-dom";
 
 import { LOGIN_PATH } from "~/api/materialize/auth";
-import LoadingScreen from "~/components/LoadingScreen";
 import { LaunchDarklyProvider } from "~/components/LaunchDarkly";
 import LoadingScreen from "~/components/LoadingScreen";
 import { type SelfManagedAppConfig } from "~/config/AppConfig";
 import { useAppConfig } from "~/config/useAppConfig";
-import { hasAuthParams, useAuth } from "~/external-library-wrappers/oidc";
 import { useIsAuthenticated } from "~/external-library-wrappers/frontegg";
 import { hasAuthParams, useAuth } from "~/external-library-wrappers/oidc";
 import { AUTH_ROUTES } from "~/fronteggRoutes";

@@ -17,7 +17,6 @@ import { ChakraProviderWrapper } from "~/components/ChakraProviderWrapper";
 import { DevtoolsContainer } from "~/components/DevtoolsContainer";
 import { FronteggProviderWrapper } from "~/components/FronteggProviderWrapper";
 import { IntercomAnonymousContainer } from "~/components/IntercomAnonymousContainer";
-import { OidcProviderWrapper } from "~/components/OidcProviderWrapper";
 import LoadingScreen from "~/components/LoadingScreen";
 import { OidcProviderWrapper } from "~/components/OidcProviderWrapper";
 import { useAppConfig } from "~/config/useAppConfig";
