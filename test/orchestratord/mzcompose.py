@@ -269,7 +269,7 @@ class Modification:
     def to_dict(self) -> dict[str, Any]:
         return {"modification": self.__class__.__name__, "value": self.value}
 
-    def __eq__(self, other: "Modification"):
+    def __eq__(self, other: object):
         if not isinstance(other, self.__class__):
             return NotImplemented
         return self.value == other.value
@@ -953,6 +953,7 @@ class SystemParamConfigMap(Modification):
             6875
             if (version >= MzVersion.parse_mz("v0.147.0") and auth == "Password")
             or (version >= MzVersion.parse_mz("v26.0.0") and auth == "Sasl")
+            or (version >= MzVersion.parse_mz("v26.16.0-dev.0") and auth == "Oidc")
             else 6877
         )
 
@@ -1405,12 +1406,14 @@ class ConsoleResources(Modification):
 class AuthenticatorKind(Modification):
     @classmethod
     def values(cls, version: MzVersion) -> list[Any]:
-        # Test None, Password (v0.147.7+), and Sasl
+        # Test None, Password (v0.147.7+), Sasl, and Oidc
         result = ["None"]
         if version >= MzVersion.parse_mz("v0.147.7"):
             result.append("Password")
         if version >= MzVersion.parse_mz("v26.0.0"):
             result.append("Sasl")
+        if version >= MzVersion.parse_mz("v26.16.0-dev.0"):
+            result.append("Oidc")
         return result
 
     @classmethod
@@ -1419,7 +1422,7 @@ class AuthenticatorKind(Modification):
 
     def modify(self, definition: dict[str, Any]) -> None:
         definition["materialize"]["spec"]["authenticatorKind"] = self.value
-        if self.value == "Password" or self.value == "Sasl":
+        if self.value == "Password" or self.value == "Sasl" or self.value == "Oidc":
             definition["secret"]["stringData"][
                 "external_login_password_mz_system"
             ] = "superpassword"
@@ -1438,10 +1441,16 @@ class AuthenticatorKind(Modification):
         if self.value == "Sasl" and version < MzVersion.parse_mz("v26.0.0"):
             return
 
+        if self.value == "Oidc" and version < MzVersion.parse_mz("v26.16.0-dev.0"):
+            return
+
         port = (
             6875
             if (version >= MzVersion.parse_mz("v0.147.0") and self.value == "Password")
             or (version >= MzVersion.parse_mz("v26.0.0") and self.value == "Sasl")
+            or (
+                version >= MzVersion.parse_mz("v26.16.0-dev.0") and self.value == "Oidc"
+            )
             else 6877
         )
         for i in range(120):
@@ -1545,6 +1554,14 @@ class AuthenticatorKind(Modification):
                         http_auth == "Password"
                     ), f"Expected HTTP listener to use Password, got {http_auth}"
                     print(f"Password mode verified: SQL={sql_auth}, HTTP={http_auth}")
+                elif self.value == "Oidc":
+                    assert (
+                        sql_auth == "Oidc"
+                    ), f"Expected SQL listener to use Oidc, got {sql_auth}"
+                    assert (
+                        http_auth == "Oidc"
+                    ), f"Expected HTTP listener to use Oidc, got {http_auth}"
+                    print(f"Oidc mode verified: SQL={sql_auth}, HTTP={http_auth}")
                 elif self.value == "None":
                     assert (
                         sql_auth == "None"

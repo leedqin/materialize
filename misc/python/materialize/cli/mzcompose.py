@@ -167,7 +167,9 @@ For additional details on mzcompose, consult doc/developer/mzbuild.md.""",
 
 
 def load_composition(
-    args: argparse.Namespace, munge_services: bool = True
+    args: argparse.Namespace,
+    munge_services: bool = True,
+    resolve_image_specs: bool = True,
 ) -> Composition:
     """Loads the composition specified by the command-line arguments."""
     if not args.ignore_docker_version:
@@ -208,6 +210,7 @@ def load_composition(
             sanity_restart_mz=args.sanity_restart_mz,
             host_network=args.host_network,
             munge_services=munge_services,
+            resolve_image_specs=resolve_image_specs,
         )
     except UnknownCompositionError as e:
         if args.find:
@@ -321,16 +324,52 @@ class ListCompositionsCommand(Command):
     help = "list the directories that contain compositions and their summaries"
 
     def run(self, args: argparse.Namespace) -> None:
+        import multiprocessing
+
         repo = mzbuild.Repository.from_arguments(MZ_ROOT, args)
-        for name, path in sorted(repo.compositions.items(), key=lambda item: item[1]):
+        items = sorted(repo.compositions.items(), key=lambda item: item[1])
+
+        ctx = multiprocessing.get_context("fork")
+        with ctx.Pool(
+            processes=os.cpu_count(),
+            initializer=_init_list_worker,
+            initargs=(repo.rd, repo.compositions),
+        ) as pool:
+            descriptions = pool.map(
+                _load_composition_description, [name for name, _ in items]
+            )
+
+        for (name, path), description in zip(items, descriptions):
             print(os.path.relpath(path, repo.root))
-            composition = Composition(repo, name, munge_services=False)
-            if composition.description:
+            if description:
                 # Emit the first paragraph of the description.
-                for line in composition.description.split("\n"):
+                for line in description.split("\n"):
                     if line.strip() == "":
                         break
                     print(f"  {line}")
+
+
+_list_worker_repo: mzbuild.Repository | None = None
+
+
+def _init_list_worker(
+    rd: mzbuild.RepositoryDetails, compositions: dict[str, Path]
+) -> None:
+    global _list_worker_repo
+    _list_worker_repo = mzbuild.Repository.__new__(mzbuild.Repository)
+    _list_worker_repo.rd = rd
+    _list_worker_repo.images = {}
+    _list_worker_repo.compositions = compositions
+
+
+def _load_composition_description(name: str) -> str | None:
+    assert _list_worker_repo is not None
+    try:
+        composition = Composition(_list_worker_repo, name, munge_services=False)
+        return composition.description
+    except Exception as e:
+        print(f"warning: failed to load composition {name}: {e}", file=sys.stderr)
+        return None
 
 
 class ListWorkflowsCommand(Command):
@@ -595,11 +634,13 @@ class DockerComposeCommand(Command):
         help: str,
         help_epilog: str | None = None,
         runs_containers: bool = False,
+        resolve_image_specs: bool = True,
     ):
         self.name = name
         self.help = help
         self.help_epilog = help_epilog
         self.runs_containers = runs_containers
+        self.resolve_image_specs = resolve_image_specs
 
     def configure(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-h", "--help", action="store_true")
@@ -617,15 +658,19 @@ class DockerComposeCommand(Command):
             print(output, file=sys.stderr)
             return
 
-        composition = load_composition(args)
+        composition = load_composition(
+            args, resolve_image_specs=self.resolve_image_specs
+        )
         if (
             args.coverage
             or not ui.env_is_truthy("CI")
             or ui.env_is_truthy("CI_ALLOW_LOCAL_BUILD")
         ):
-            ui.section("Collecting mzbuild images")
-            for d in composition.dependencies:
-                ui.say(d.spec())
+            dependencies = list(composition.dependencies)
+            if dependencies:
+                ui.section("Collecting mzbuild images")
+                for d in dependencies:
+                    ui.say(d.spec())
 
             if self.runs_containers:
                 if args.coverage:
@@ -890,9 +935,14 @@ CreateCommand = DockerComposeCommand("create", "create services", runs_container
 
 class DownCommand(DockerComposeCommand):
     def __init__(self) -> None:
-        super().__init__("down", "Stop and remove containers, networks")
+        super().__init__(
+            "down",
+            "Stop and remove containers, networks",
+            resolve_image_specs=False,
+        )
 
     def run(self, args: argparse.Namespace) -> Any:
+        args.unknown_subargs[0:0] = ["--timeout", "0"]
         args.unknown_subargs.append("--volumes")
         # --remove-orphans needs to be in effect at all times otherwise
         # services added to a composition after the fact will not be cleaned up

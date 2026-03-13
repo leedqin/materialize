@@ -1057,7 +1057,7 @@ fn create_environmentd_statefulset_object(
         args.push("--listeners-config-path=/listeners/listeners.json".to_owned());
         if matches!(
             mz.spec.authenticator_kind,
-            AuthenticatorKind::Password | AuthenticatorKind::Sasl
+            AuthenticatorKind::Password | AuthenticatorKind::Sasl | AuthenticatorKind::Oidc
         ) {
             args.push("--system-parameter-default=enable_password_auth=true".into());
             env.push(EnvVar {
@@ -1366,7 +1366,7 @@ fn create_connection_info(
 
     if matches!(
         authenticator_kind,
-        AuthenticatorKind::Password | AuthenticatorKind::Sasl
+        AuthenticatorKind::Password | AuthenticatorKind::Sasl | AuthenticatorKind::Oidc
     ) {
         listeners_config.sql.remove("internal");
         listeners_config.http.remove("internal");
@@ -1423,7 +1423,7 @@ fn create_connection_info(
     };
 
     let (scheme, leader_api_port, mz_system_secret_name) = match authenticator_kind {
-        AuthenticatorKind::Password | AuthenticatorKind::Sasl => {
+        AuthenticatorKind::Password | AuthenticatorKind::Sasl | AuthenticatorKind::Oidc => {
             let scheme = if external_enable_tls { "https" } else { "http" };
             (
                 scheme,

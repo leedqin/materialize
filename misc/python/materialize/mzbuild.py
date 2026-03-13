@@ -290,6 +290,7 @@ def is_docker_image_pushed(name: str) -> bool:
                     "Accept": "application/vnd.docker.distribution.manifest.v2+json",
                 },
                 auth=HTTPBasicAuth(dockerhub_username, dockerhub_token),
+                timeout=10,
             )
         else:
             token = requests.get(
@@ -298,6 +299,7 @@ def is_docker_image_pushed(name: str) -> bool:
                     "service": "registry.docker.io",
                     "scope": f"repository:{image}:pull",
                 },
+                timeout=10,
             ).json()["token"]
             response = requests.head(
                 f"https://registry-1.docker.io/v2/{image}/manifests/{tag}",
@@ -305,6 +307,7 @@ def is_docker_image_pushed(name: str) -> bool:
                     "Accept": "application/vnd.docker.distribution.manifest.v2+json",
                     "Authorization": f"Bearer {token}",
                 },
+                timeout=10,
             )
 
         if response.status_code in (401, 429, 500, 502, 503, 504):
@@ -360,10 +363,12 @@ def is_ghcr_image_pushed(name: str) -> bool:
             params={
                 "scope": f"repository:{image}:pull",
             },
+            timeout=10,
         ).json()["token"]
         response = requests.head(
             f"https://ghcr.io/v2/{image}/manifests/{tag}",
             headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
         )
 
         if response.status_code in (401, 429, 500, 502, 503, 504):
@@ -606,10 +611,10 @@ class CargoBuild(CargoPreImage):
         return cargo_build
 
     @classmethod
-    def prepare_batch(cls, cargo_builds: list["PreImage"]) -> dict[str, Any]:
-        super().prepare_batch(cargo_builds)
+    def prepare_batch(cls, instances: list["PreImage"]) -> dict[str, Any]:
+        super().prepare_batch(instances)
 
-        if not cargo_builds:
+        if not instances:
             return {}
 
         # Building all binaries and examples in the same `cargo build` command
@@ -617,7 +622,7 @@ class CargoBuild(CargoPreImage):
         # meaningfully speed up builds.
 
         rd: RepositoryDetails | None = None
-        builds = cast(list[CargoBuild], cargo_builds)
+        builds = cast(list[CargoBuild], instances)
         bins = set()
         examples = set()
         features = set()
@@ -979,13 +984,13 @@ class ResolvedImage:
 
     def try_pull(self, max_retries: int) -> bool:
         """Download the image if it does not exist locally. Returns whether it was found."""
-        ui.header(f"Acquiring {self.spec()}")
         command = ["docker", "pull"]
         # --quiet skips printing the progress bar, which does not display well in CI.
         if ui.env_is_truthy("CI"):
             command.append("--quiet")
         command.append(self.spec())
         if not self.acquired:
+            ui.header(f"Acquiring {self.spec()}")
             sleep_time = 1
             for retry in range(1, max_retries + 1):
                 try:
@@ -1183,7 +1188,8 @@ class DependencySet:
         The provided `dependencies` must be topologically sorted.
         """
         self._dependencies: dict[str, ResolvedImage] = {}
-        known_images = docker_images()
+        dependencies = list(dependencies)
+        known_images = docker_images() if dependencies else set()
         for d in dependencies:
             image = ResolvedImage(
                 image=d,
@@ -1378,33 +1384,26 @@ class Repository:
         )
         self.images: dict[str, Image] = {}
         self.compositions: dict[str, Path] = {}
-        for path, dirs, files in os.walk(self.root, topdown=True):
-            if path == str(root / "misc"):
-                dirs.remove("python")
-            # Filter out some particularly massive ignored directories to keep
-            # things snappy. Not required for correctness.
-            dirs[:] = set(dirs) - {
-                ".git",
-                ".mypy_cache",
-                "target",
-                "target-ra",
-                "target-xcompile",
-                "mzdata",
-                "node_modules",
-                "venv",
-            }
-            if "mzbuild.yml" in files:
-                image = Image(self.rd, Path(path))
+        for rel_path_s in sorted(
+            git.expand_globs(self.root, "**/mzbuild.yml", "**/mzcompose.py")
+        ):
+            rel_path = Path(rel_path_s)
+            if rel_path.parts[:2] == ("misc", "python"):
+                continue
+
+            parent = self.root / rel_path.parent
+            if rel_path.name == "mzbuild.yml":
+                image = Image(self.rd, parent)
                 if not image.name:
-                    raise ValueError(f"config at {path} missing name")
+                    raise ValueError(f"config at {parent} missing name")
                 if image.name in self.images:
                     raise ValueError(f"image {image.name} exists twice")
                 self.images[image.name] = image
-            if "mzcompose.py" in files:
-                name = Path(path).name
+            elif rel_path.name == "mzcompose.py":
+                name = parent.name
                 if name in self.compositions:
                     raise ValueError(f"composition {name} exists twice")
-                self.compositions[name] = Path(path)
+                self.compositions[name] = parent
 
         # Validate dependencies.
         for image in self.images.values():
@@ -1615,31 +1614,41 @@ def publish_multiarch_images(
         assert len(names) == 1, "dependency sets did not contain identical images"
         name = images[0].image.docker_name(tag)
         if tag in always_push_tags or not is_docker_image_pushed(name):
-            spawn.runv(
-                [
-                    "docker",
-                    "manifest",
-                    "create",
-                    name,
-                    *(image.spec() for image in images),
-                ]
+            spawn.run_with_retries(
+                lambda: (
+                    spawn.runv(
+                        [
+                            "docker",
+                            "manifest",
+                            "create",
+                            "--amend",
+                            name,
+                            *(image.spec() for image in images),
+                        ]
+                    ),
+                    spawn.runv(["docker", "manifest", "push", name]),
+                )
             )
-            spawn.runv(["docker", "manifest", "push", name])
 
         ghcr_name = f"{GHCR_PREFIX}{name}"
         if ghcr_token and (
             tag in always_push_tags or not is_ghcr_image_pushed(ghcr_name)
         ):
-            spawn.runv(
-                [
-                    "docker",
-                    "manifest",
-                    "create",
-                    ghcr_name,
-                    *(f"{GHCR_PREFIX}{image.spec()}" for image in images),
-                ]
+            spawn.run_with_retries(
+                lambda: (
+                    spawn.runv(
+                        [
+                            "docker",
+                            "manifest",
+                            "create",
+                            "--amend",
+                            ghcr_name,
+                            *(f"{GHCR_PREFIX}{image.spec()}" for image in images),
+                        ]
+                    ),
+                    spawn.runv(["docker", "manifest", "push", ghcr_name]),
+                )
             )
-            spawn.runv(["docker", "manifest", "push", ghcr_name])
     print(f"--- Nofifying for tag {tag}")
     markdown = f"""Pushed images with Docker tag `{tag}`"""
     spawn.runv(
