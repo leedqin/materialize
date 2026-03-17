@@ -68,6 +68,7 @@ SERVICES = [
     Mz(app_password=""),
     Materialized(
         cluster_replica_size=cluster_replica_sizes,
+        bootstrap_replica_size="50cc",
         ports=[6875, 6874, 6876, 6877, 6878, 6880, 6881, 26257],
         environment_extra=["MZ_NO_BUILTIN_CONSOLE=0"],
         additional_system_parameter_defaults={"enable_rbac_checks": "false"},

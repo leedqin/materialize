@@ -140,6 +140,13 @@ const LargestReplicaLoader = (props: LargestMaintainedQueriesProps) => {
   // Don't show anything if the cluster has no replicas
   if (!largestReplica) return null;
 
+  // Don't query introspection sources until the replica is fully hydrated.
+  // Before hydration, the query blocks for up to 30s holding a connection slot.
+  // Note: isHydrated is null on system clusters (where all objects are system
+  // objects filtered out by the hydration check). Treat null as hydrated since
+  // system clusters are always ready.
+  if (largestReplica.isHydrated === false) return null;
+
   return (
     <AppErrorBoundary
       renderFallback={({ error }) => (
