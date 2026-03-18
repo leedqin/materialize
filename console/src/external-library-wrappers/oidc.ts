@@ -10,68 +10,65 @@
 /* eslint-disable no-restricted-imports */
 /**
  * This file is a facade for the react-oidc-context / oidc-client-ts libraries.
- * It is used primarily to mock the libraries in tests via `vi.mock` in ~/vitest.setup.ts.
- * Make sure anything you'd like to mock is updated in ./__mocks__/oidc.ts
  */
-export { UserManager } from "oidc-client-ts";
 export { AuthProvider, hasAuthParams, useAuth } from "react-oidc-context";
 
-import { UserManager } from "oidc-client-ts";
+import { UserManager, WebStorageStateStore } from "oidc-client-ts";
 
 import { type OidcConfig } from "~/config/AppConfig";
 
 /**
- * Shared OIDC UserManager instance. Created once by initOidcUserManager()
- * and used by both AuthProvider (React) and the API client (non-React).
- *
- * A cached ID token is maintained via UserManager events so that synchronous
- * callers (like getWsAuthConfig) can access it without awaiting.
+ * Wraps oidc-client-ts UserManager, caching the ID token for synchronous
+ * access by the API client middleware and WebSocket auth.
  *
  * We use the ID token (not the access token) because its audience is always
  * the OIDC client ID, which matches what environmentd validates for both
  * HTTP and pgwire connections.
  */
-let userManager: UserManager | null = null;
-let cachedIdToken: string | undefined;
+export class MzOidcUserManager {
+  #userManager: UserManager;
+  #cachedIdToken: string | undefined;
 
-export function initOidcUserManager(config: OidcConfig): UserManager {
-  if (userManager) return userManager;
+  constructor(config: OidcConfig) {
+    this.#userManager = new UserManager({
+      authority: config.issuer,
+      client_id: config.clientId,
+      redirect_uri: `${window.location.origin}/auth/callback`,
+      post_logout_redirect_uri: `${window.location.origin}/account/login`,
+      scope: config.scopes,
+      response_type: "code",
+      automaticSilentRenew: true,
+      userStore: new WebStorageStateStore({ store: window.localStorage }),
+    });
 
-  userManager = new UserManager({
-    authority: config.issuer,
-    client_id: config.clientId,
-    redirect_uri: `${window.location.origin}/auth/callback`,
-    post_logout_redirect_uri: `${window.location.origin}/account/login`,
-    scope: config.scopes,
-    response_type: "code",
-    automaticSilentRenew: true,
-  });
+    this.#userManager.events.addUserLoaded((user) => {
+      this.#cachedIdToken = user.id_token;
+    });
 
-  userManager.events.addUserLoaded((user) => {
-    cachedIdToken = user.id_token;
-  });
+    this.#userManager.events.addUserUnloaded(() => {
+      this.#cachedIdToken = undefined;
+    });
 
-  userManager.events.addUserUnloaded(() => {
-    cachedIdToken = undefined;
-  });
+    // Eagerly populate the cached token from storage so that API requests
+    // made immediately after page load can include the Authorization header.
+    // The userLoaded event only fires on sign-in/silent-renew, not on
+    // loading an existing session from storage.
+    this.#userManager.getUser().then((user) => {
+      if (user && !this.#cachedIdToken) {
+        this.#cachedIdToken = user.id_token;
+      }
+    });
+  }
 
-  // Eagerly populate the cached token from storage so that API requests
-  // made immediately after page load can include the Authorization header.
-  // The userLoaded event only fires on sign-in/silent-renew, not on
-  // loading an existing session from storage.
-  userManager.getUser().then((user) => {
-    if (user && !cachedIdToken) {
-      cachedIdToken = user.id_token;
-    }
-  });
+  getIdToken(): string | undefined {
+    return this.#cachedIdToken;
+  }
 
-  return userManager;
-}
+  getUserManager(): UserManager {
+    return this.#userManager;
+  }
 
-export function getOidcUserManager(): UserManager | null {
-  return userManager;
-}
-
-export function getOidcIdToken(): string | undefined {
-  return cachedIdToken;
+  signoutRedirect(): Promise<void> {
+    return this.#userManager.signoutRedirect();
+  }
 }

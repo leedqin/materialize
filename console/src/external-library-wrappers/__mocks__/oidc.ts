@@ -7,8 +7,6 @@
 // the Business Source License, use of this software will be governed
 // by the Apache License, Version 2.0.
 
-export const MOCK_OIDC_ID_TOKEN = "mock-oidc-id-token";
-
 export const useAuth = vi.fn(() => ({
   isAuthenticated: false,
   isLoading: false,
@@ -21,8 +19,8 @@ export const AuthProvider = ({ children }: React.PropsWithChildren) => children;
 
 export const hasAuthParams = vi.fn(() => false);
 
-export const UserManager = vi.fn();
-
-export const initOidcUserManager = vi.fn();
-export const getOidcUserManager = vi.fn(() => null);
-export const getOidcIdToken = vi.fn(() => MOCK_OIDC_ID_TOKEN);
+export class MzOidcUserManager {
+  getIdToken = vi.fn(() => undefined);
+  getUserManager = vi.fn();
+  signoutRedirect = vi.fn();
+}

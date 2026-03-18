@@ -12,10 +12,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CloudAppConfig, SelfManagedAppConfig } from "~/config/AppConfig";
 import { MOCK_ACCESS_TOKEN } from "~/external-library-wrappers/__mocks__/frontegg";
-import {
-  getOidcIdToken,
-  MOCK_OIDC_ID_TOKEN,
-} from "~/external-library-wrappers/__mocks__/oidc";
 
 import {
   CloudApiClient,
@@ -308,7 +304,11 @@ const MOCK_OIDC_CONFIG = {
 
 describe("SelfManagedApiClient (Oidc)", () => {
   it("should send Bearer header and return token ws config when OIDC token exists", async () => {
-    const client = new SelfManagedApiClient({ appConfig: MOCK_OIDC_CONFIG });
+    const MOCK_TOKEN = "test-oidc-id-token";
+    const client = new SelfManagedApiClient({
+      appConfig: MOCK_OIDC_CONFIG,
+      oidcManager: { getIdToken: () => MOCK_TOKEN } as any,
+    });
 
     const TEST_URL = "https://oidc.example.com";
     let headers: Headers | null = null;
@@ -320,14 +320,16 @@ describe("SelfManagedApiClient (Oidc)", () => {
     );
 
     await client.mzApiFetch(TEST_URL);
-    expect(headers!.get("Authorization")).toBe(`Bearer ${MOCK_OIDC_ID_TOKEN}`);
-    expect(client.getWsAuthConfig()).toEqual({ token: MOCK_OIDC_ID_TOKEN });
+    expect(headers!.get("Authorization")).toBe(`Bearer ${MOCK_TOKEN}`);
+    expect(client.getWsAuthConfig()).toEqual({ token: MOCK_TOKEN });
     server.resetHandlers();
   });
 
   it("should skip Bearer header, return null ws config, and redirect on 401 when no OIDC token", async () => {
-    vi.mocked(getOidcIdToken).mockReturnValue(undefined as unknown as string);
-    const client = new SelfManagedApiClient({ appConfig: MOCK_OIDC_CONFIG });
+    const client = new SelfManagedApiClient({
+      appConfig: MOCK_OIDC_CONFIG,
+      oidcManager: { getIdToken: () => undefined } as any,
+    });
 
     expect(client.getWsAuthConfig()).toBeNull();
 
@@ -352,6 +354,5 @@ describe("SelfManagedApiClient (Oidc)", () => {
     });
 
     server.resetHandlers();
-    vi.mocked(getOidcIdToken).mockReturnValue(MOCK_OIDC_ID_TOKEN);
   });
 });

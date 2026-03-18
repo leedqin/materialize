@@ -38,7 +38,7 @@ import {
   AuthState,
   type User,
 } from "~/external-library-wrappers/frontegg";
-import { getOidcUserManager } from "~/external-library-wrappers/oidc";
+import { useAuth } from "~/external-library-wrappers/oidc";
 import { AUTH_ROUTES } from "~/fronteggRoutes";
 import { NAV_HORIZONTAL_SPACING, NAV_HOVER_STYLES } from "~/layouts/constants";
 import docUrls from "~/mz-doc-urls.json";
@@ -92,6 +92,32 @@ const PricingMenuItem = () => (
   </MenuItem>
 );
 
+const OidcSignOutMenuItem = () => {
+  const auth = useAuth();
+
+  const handleLogout = async () => {
+    // Clear both the session cookie and OIDC state so that
+    // logout works regardless of which method the user used.
+    if (apiClient.type === "self-managed") {
+      try {
+        await logout({ apiClient });
+      } catch {
+        // Cookie may not exist if user logged in via OIDC only.
+      }
+    }
+    await auth.signoutRedirect();
+  };
+
+  return (
+    <>
+      <MenuDivider />
+      <MenuItem fontWeight="medium" onClick={handleLogout}>
+        Sign out
+      </MenuItem>
+    </>
+  );
+};
+
 const SignOutMenuItem = () => {
   return (
     <AppConfigSwitch
@@ -111,28 +137,12 @@ const SignOutMenuItem = () => {
         );
       }}
       selfManagedConfigElement={({ appConfig }) => {
-        if (appConfig.authMode === "None") {
-          return null;
-        }
-        const handleLogout =
-          appConfig.authMode === "Oidc"
-            ? async () => {
-                // Clear both the session cookie and OIDC state so that
-                // logout works regardless of which method the user used.
-                if (apiClient.type === "self-managed") {
-                  try {
-                    await logout({ apiClient });
-                  } catch {
-                    // Cookie may not exist if user logged in via OIDC only.
-                  }
-                }
-                getOidcUserManager()?.signoutRedirect();
-              }
-            : logoutAndRedirectOrThrow;
+        if (appConfig.authMode === "None") return null;
+        if (appConfig.authMode === "Oidc") return <OidcSignOutMenuItem />;
         return (
           <>
             <MenuDivider />
-            <MenuItem fontWeight="medium" onClick={handleLogout}>
+            <MenuItem fontWeight="medium" onClick={logoutAndRedirectOrThrow}>
               Sign out
             </MenuItem>
           </>

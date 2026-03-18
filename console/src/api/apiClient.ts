@@ -19,7 +19,7 @@ import {
   SelfManagedAuthMode,
 } from "~/config/AppConfig";
 import { ContextHolder } from "~/external-library-wrappers/frontegg";
-import { getOidcIdToken } from "~/external-library-wrappers/oidc";
+import { MzOidcUserManager } from "~/external-library-wrappers/oidc";
 
 import { logoutAndRedirect } from "./materialize/auth";
 import {
@@ -163,6 +163,7 @@ export class SelfManagedApiClient
   implements IApiClientBase, ISelfManagedApiClient
 {
   #appConfig: Readonly<SelfManagedAppConfig>;
+  oidcManager?: MzOidcUserManager;
   authMode: SelfManagedAuthMode;
   authApiBasePath: string;
   mzHttpUrlScheme: HttpScheme;
@@ -183,7 +184,7 @@ export class SelfManagedApiClient
   #oidcAuthMiddleware: Middleware = (next) => {
     return async (...fetchArgs) => {
       const [input, options = {}] = fetchArgs;
-      const idToken = getOidcIdToken();
+      const idToken = this.oidcManager?.getIdToken();
 
       const headers = copyHeaders(fetchArgs);
       if (idToken) {
@@ -195,8 +196,15 @@ export class SelfManagedApiClient
     };
   };
 
-  constructor({ appConfig }: { appConfig: Readonly<SelfManagedAppConfig> }) {
+  constructor({
+    appConfig,
+    oidcManager,
+  }: {
+    appConfig: Readonly<SelfManagedAppConfig>;
+    oidcManager?: MzOidcUserManager;
+  }) {
     this.#appConfig = appConfig;
+    this.oidcManager = oidcManager;
     this.mzHttpUrlScheme = this.#appConfig.environmentdScheme;
     this.mzWebsocketUrlScheme = this.#appConfig.environmentdWebsocketScheme;
     this.authApiBasePath = `${this.#appConfig.environmentdScheme}://${this.#appConfig.environmentdConfig.environmentdHttpAddress}`;
@@ -219,7 +227,7 @@ export class SelfManagedApiClient
 
     this.getWsAuthConfig = () => {
       if (this.authMode === "Oidc") {
-        const idToken = getOidcIdToken();
+        const idToken = this.oidcManager?.getIdToken();
         if (idToken) {
           return buildTokenAuthConfig(idToken);
         }
@@ -355,7 +363,11 @@ function createApiClient(appConfig: AppConfig) {
     }
     return new CloudApiClient({ appConfig });
   } else {
-    return new SelfManagedApiClient({ appConfig });
+    const oidcManager =
+      appConfig.authMode === "Oidc" && appConfig.oidcConfig
+        ? new MzOidcUserManager(appConfig.oidcConfig)
+        : undefined;
+    return new SelfManagedApiClient({ appConfig, oidcManager });
   }
 }
 

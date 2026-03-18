@@ -10,24 +10,16 @@
 import React, { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { useAppConfig } from "~/config/useAppConfig";
-import {
-  AuthProvider,
-  initOidcUserManager,
-} from "~/external-library-wrappers/oidc";
+import { apiClient } from "~/api/apiClient";
+import { AuthProvider } from "~/external-library-wrappers/oidc";
 
 export const OidcProviderWrapper = ({ children }: React.PropsWithChildren) => {
-  const appConfig = useAppConfig();
   const navigate = useNavigate();
 
   const userManager = useMemo(() => {
-    if (appConfig.mode !== "self-managed" || appConfig.authMode !== "Oidc") {
-      return null;
-    }
-    return appConfig.oidcConfig
-      ? initOidcUserManager(appConfig.oidcConfig)
-      : null;
-  }, [appConfig]);
+    if (apiClient.type !== "self-managed") return null;
+    return apiClient.oidcManager?.getUserManager() ?? null;
+  }, []);
 
   const onSigninCallback = useCallback(() => {
     // After the OIDC provider redirects back, navigate to "/" to clear
