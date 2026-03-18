@@ -9,6 +9,12 @@
 
 import { type OidcConfig, type SelfManagedAuthMode } from "./AppConfig";
 
+type AppConfigJson = {
+  auth: {
+    mode: SelfManagedAuthMode;
+  };
+};
+
 const DEFAULT_APP_CONFIG = {
   auth: {
     mode: "None" as const,
@@ -28,20 +34,49 @@ async function fetchAppConfigJson() {
   }
 }
 
+interface ConsoleConfigResponse {
+  oidc_issuer: string;
+  console_oidc_client_id: string;
+  console_oidc_scopes: string;
+}
+
+async function fetchOidcConfigFromEnvironmentd(): Promise<
+  OidcConfig | undefined
+> {
+  try {
+    const response = await fetch("/api/console/config");
+    if (!response.ok) {
+      console.error("Failed to fetch console config:", response.status);
+      return undefined;
+    }
+    const data: ConsoleConfigResponse = await response.json();
+    if (!data.oidc_issuer || !data.console_oidc_client_id) {
+      return undefined;
+    }
+    return {
+      issuer: data.oidc_issuer,
+      clientId: data.console_oidc_client_id,
+      scopes: data.console_oidc_scopes || "openid profile email",
+    };
+  } catch (error) {
+    console.error("Failed to fetch OIDC config from environmentd", error);
+    return undefined;
+  }
+}
+
 const appConfigJson = await fetchAppConfigJson();
 
-export function importAppConfig(): {
-  auth: {
-    mode: SelfManagedAuthMode;
-  } & Partial<OidcConfig>;
-} {
+export function importAppConfig(): AppConfigJson {
   if (process.env.NODE_ENV === "test") {
     return DEFAULT_APP_CONFIG;
   }
 
-  return appConfigJson as {
-    auth: {
-      mode: SelfManagedAuthMode;
-    } & Partial<OidcConfig>;
-  };
+  return appConfigJson as AppConfigJson;
+}
+
+export async function importOidcConfig(): Promise<OidcConfig | undefined> {
+  if (process.env.NODE_ENV === "test") {
+    return undefined;
+  }
+  return fetchOidcConfigFromEnvironmentd();
 }
