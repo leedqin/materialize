@@ -15,7 +15,45 @@ export { AuthProvider, hasAuthParams, useAuth } from "react-oidc-context";
 
 import { UserManager, WebStorageStateStore } from "oidc-client-ts";
 
-import { type OidcConfig } from "~/config/AppConfig";
+export interface OidcConfig {
+  issuer: string;
+  clientId: string;
+  scopes: string;
+}
+
+interface ConsoleConfigResponse {
+  oidc_issuer: string;
+  console_oidc_client_id: string;
+  console_oidc_scopes: string;
+}
+
+async function fetchOidcConfig(): Promise<OidcConfig> {
+  const response = await fetch("/api/console/config");
+  if (!response.ok) {
+    throw new Error(`Failed to fetch OIDC config: ${response.status}`);
+  }
+  const data: ConsoleConfigResponse = await response.json();
+
+  if (!data.console_oidc_client_id) {
+    throw new Error(
+      "OIDC client ID is required but was empty. Configure console_oidc_client_id in environmentd.",
+    );
+  }
+  if (
+    !data.console_oidc_scopes ||
+    !data.console_oidc_scopes.includes("openid")
+  ) {
+    throw new Error(
+      "OIDC scopes must include at least 'openid'. Configure console_oidc_scopes in environmentd.",
+    );
+  }
+
+  return {
+    issuer: data.oidc_issuer,
+    clientId: data.console_oidc_client_id,
+    scopes: data.console_oidc_scopes,
+  };
+}
 
 /**
  * Wraps oidc-client-ts UserManager, caching the ID token for synchronous
@@ -70,5 +108,14 @@ export class MzOidcUserManager {
 
   signoutRedirect(): Promise<void> {
     return this.#userManager.signoutRedirect();
+  }
+
+  /**
+   * Async factory that fetches OIDC config from environmentd's
+   * `/api/console/config` endpoint and returns an initialized manager.
+   */
+  static async create(): Promise<MzOidcUserManager> {
+    const config = await fetchOidcConfig();
+    return new MzOidcUserManager(config);
   }
 }

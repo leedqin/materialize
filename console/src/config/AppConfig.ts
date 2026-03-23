@@ -13,7 +13,7 @@ import { HttpScheme, WebsocketScheme } from "~/api/types";
 // This is because in the Playwright configuration file, it redirects it to a stub implementation in __mocks__/importAppConfig.ts.
 // The stub is necessary because Playwright requires CommonJS (which doesn't support top-level await), while our main appConfig uses ESM with top-level await.
 // Once Playwright supports ESM, we can remove this import path and use the actual importAppConfig file.
-import { importAppConfig, importOidcConfig } from "~/config/importAppConfig";
+import { importAppConfig } from "~/config/importAppConfig";
 import { SentryConfig } from "~/sentry";
 import { CloudRegion } from "~/store/cloudRegions";
 
@@ -36,7 +36,6 @@ import { getEnvironmentdConfig } from "./environment";
 import { getImpersonatedEnvironment } from "./impersonation";
 
 const appConfigJson = importAppConfig();
-const oidcConfig = await importOidcConfig();
 // Message used to indicate that a feature is not supported in the current deployment mode. Usually thrown as an error.
 export const NOT_SUPPORTED_MESSAGE = "Not supported in this deployment mode";
 
@@ -76,12 +75,6 @@ export type SelfManagedAuthMode =
   | NoneAuthMode
   | SaslAuthMode
   | OidcAuthMode;
-
-export interface OidcConfig {
-  issuer: string;
-  clientId: string;
-  scopes: string;
-}
 
 type AuthMode =
   | FronteggAuthMode
@@ -212,11 +205,7 @@ export class CloudAppConfig implements IBaseAppConfig {
 export class SelfManagedAppConfig implements IBaseAppConfig {
   mode = "self-managed" as const;
 
-  oidcConfig: OidcConfig | undefined = oidcConfig;
-
-  authMode: SelfManagedAuthMode = this.oidcConfig
-    ? "Oidc"
-    : appConfigJson.auth.mode;
+  authMode: SelfManagedAuthMode = appConfigJson.auth.mode;
 
   environmentdScheme = getEnvironmentdScheme({
     buildConstants,

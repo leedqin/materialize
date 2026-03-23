@@ -23,4 +23,6 @@ export class MzOidcUserManager {
   getIdToken = vi.fn(() => undefined);
   getUserManager = vi.fn();
   signoutRedirect = vi.fn();
+
+  static create = vi.fn(() => Promise.resolve(new MzOidcUserManager()));
 }

@@ -164,6 +164,7 @@ export class SelfManagedApiClient
 {
   #appConfig: Readonly<SelfManagedAppConfig>;
   oidcManager?: MzOidcUserManager;
+  oidcManagerPromise?: Promise<MzOidcUserManager>;
   authMode: SelfManagedAuthMode;
   authApiBasePath: string;
   mzHttpUrlScheme: HttpScheme;
@@ -196,21 +197,18 @@ export class SelfManagedApiClient
     };
   };
 
-  constructor({
-    appConfig,
-    oidcManager,
-  }: {
-    appConfig: Readonly<SelfManagedAppConfig>;
-    oidcManager?: MzOidcUserManager;
-  }) {
+  constructor({ appConfig }: { appConfig: Readonly<SelfManagedAppConfig> }) {
     this.#appConfig = appConfig;
-    this.oidcManager = oidcManager;
     this.mzHttpUrlScheme = this.#appConfig.environmentdScheme;
     this.mzWebsocketUrlScheme = this.#appConfig.environmentdWebsocketScheme;
     this.authApiBasePath = `${this.#appConfig.environmentdScheme}://${this.#appConfig.environmentdConfig.environmentdHttpAddress}`;
     this.authMode = this.#appConfig.authMode;
 
     if (this.authMode === "Oidc") {
+      this.oidcManagerPromise = MzOidcUserManager.create().then((manager) => {
+        this.oidcManager = manager;
+        return manager;
+      });
       // When OIDC is configured, users can authenticate via either OIDC or
       // password. The OIDC middleware adds a Bearer token if one exists;
       // otherwise no auth header is sent and the session cookie is used
@@ -363,11 +361,7 @@ function createApiClient(appConfig: AppConfig) {
     }
     return new CloudApiClient({ appConfig });
   } else {
-    const oidcManager =
-      appConfig.authMode === "Oidc" && appConfig.oidcConfig
-        ? new MzOidcUserManager(appConfig.oidcConfig)
-        : undefined;
-    return new SelfManagedApiClient({ appConfig, oidcManager });
+    return new SelfManagedApiClient({ appConfig });
   }
 }
 

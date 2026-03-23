@@ -307,8 +307,9 @@ describe("SelfManagedApiClient (Oidc)", () => {
     const MOCK_TOKEN = "test-oidc-id-token";
     const client = new SelfManagedApiClient({
       appConfig: MOCK_OIDC_CONFIG,
-      oidcManager: { getIdToken: () => MOCK_TOKEN } as any,
     });
+    await client.oidcManagerPromise;
+    client.oidcManager = { getIdToken: () => MOCK_TOKEN } as any;
 
     const TEST_URL = "https://oidc.example.com";
     let headers: Headers | null = null;
@@ -328,8 +329,8 @@ describe("SelfManagedApiClient (Oidc)", () => {
   it("should skip Bearer header, return null ws config, and redirect on 401 when no OIDC token", async () => {
     const client = new SelfManagedApiClient({
       appConfig: MOCK_OIDC_CONFIG,
-      oidcManager: { getIdToken: () => undefined } as any,
     });
+    client.oidcManager = { getIdToken: () => undefined } as any;
 
     expect(client.getWsAuthConfig()).toBeNull();
 
