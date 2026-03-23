@@ -13,6 +13,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CloudAppConfig, SelfManagedAppConfig } from "~/config/AppConfig";
 import { MOCK_ACCESS_TOKEN } from "~/external-library-wrappers/__mocks__/frontegg";
 
+vi.mock("~/external-library-wrappers/oidc");
+
 import {
   CloudApiClient,
   FLEXIBLE_DEPLOYMENT_USER,
