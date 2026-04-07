@@ -67,9 +67,9 @@ const McpConnectInstructions = ({
 
   const user = userStr || "<user>";
   const base64Command = `printf '${user}:<password>' | base64`;
-  const agentsUrl = `${baseUrl}/api/mcp/agents`;
   const observatoryUrl = `${baseUrl}/api/mcp/observatory`;
 
+  const agentsUrl = `${baseUrl}/api/mcp/agents`;
   const claudeCodeCliCommand = `claude mcp add --transport http materialize-agents ${agentsUrl} --header "Authorization: Basic <base64-token>"`;
 
   return (
@@ -101,62 +101,37 @@ const McpConnectInstructions = ({
         <Text fontSize="sm" color={colors.foreground.secondary}>
           Replace <code>&lt;base64-token&gt;</code> with the output from Step 1.
         </Text>
-      </VStack>
-
-      <VStack alignItems="stretch" spacing="2">
-        <Text fontSize="sm" fontWeight="500">
-          Claude Code
-        </Text>
-        <Text fontSize="xs" color={colors.foreground.secondary}>
-          Run this command in your terminal:
-        </Text>
-        <CopyableBox variant="default" contents={claudeCodeCliCommand} />
-        <Text fontSize="xs" color={colors.foreground.secondary}>
-          Or save the following to <code>.mcp.json</code> in your project
-          directory:
-        </Text>
         <TabbedCodeBlock
           tabs={[
             {
-              title: ".mcp.json",
-              contents: mcpConfigJson(baseUrl, "agents", {
-                includeType: true,
-              }),
+              title: "Claude Code",
+              children: (
+                <VStack alignItems="stretch" spacing="3" p="4">
+                  <Text fontSize="xs" color={colors.foreground.secondary}>
+                    Run this command in your terminal:
+                  </Text>
+                  <CopyableBox
+                    variant="default"
+                    contents={claudeCodeCliCommand}
+                  />
+                  <Text fontSize="xs" color={colors.foreground.secondary}>
+                    Or save to <code>.mcp.json</code> in your project directory:
+                  </Text>
+                  <CopyableBox
+                    variant="default"
+                    contents={mcpConfigJson(baseUrl, "agents", {
+                      includeType: true,
+                    })}
+                  />
+                </VStack>
+              ),
             },
-          ]}
-        />
-      </VStack>
-
-      <VStack alignItems="stretch" spacing="2">
-        <Text fontSize="sm" fontWeight="500">
-          Claude Desktop
-        </Text>
-        <Text fontSize="xs" color={colors.foreground.secondary}>
-          Add the following to <code>claude_desktop_config.json</code> in your
-          Claude Desktop settings:
-        </Text>
-        <TabbedCodeBlock
-          tabs={[
             {
-              title: "claude_desktop_config.json",
+              title: "Claude Desktop",
               contents: mcpConfigJson(baseUrl, "agents"),
             },
-          ]}
-        />
-      </VStack>
-
-      <VStack alignItems="stretch" spacing="2">
-        <Text fontSize="sm" fontWeight="500">
-          Cursor
-        </Text>
-        <Text fontSize="xs" color={colors.foreground.secondary}>
-          Add the following to <code>.cursor/mcp.json</code> in your project
-          directory:
-        </Text>
-        <TabbedCodeBlock
-          tabs={[
             {
-              title: ".cursor/mcp.json",
+              title: "Cursor",
               contents: mcpConfigJson(baseUrl, "agents"),
             },
           ]}

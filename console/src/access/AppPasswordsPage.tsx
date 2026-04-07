@@ -213,7 +213,7 @@ const AppPasswordsInner = (props: {
                           placement="right"
                           lineHeight="1.15"
                         >
-                          Services and agents
+                          Service
                         </Tooltip>
                       </Radio>
                     </Stack>
@@ -221,7 +221,7 @@ const AppPasswordsInner = (props: {
                   <FormHelperText>
                     {watchType == "personal"
                       ? `Personal app passwords are associated with your user account (${user.email}).`
-                      : "Service and agent app passwords are associated with a user account of your choosing."}
+                      : "Service app passwords are associated with a user account of your choosing."}
                   </FormHelperText>
                 </FormControl>
                 <FormControl isInvalid={!!formState.errors.name}>
@@ -519,6 +519,8 @@ const SecretBox = ({
                 label="mcpToken"
                 contents={base64Token}
                 obfuscatedContent={obfuscatedBase64Token}
+                overflow="hidden"
+                minWidth={0}
               />
             </VStack>
           </VStack>

@@ -171,6 +171,8 @@ const CreateAppPasswordInner = ({ user }: { user: User }) => {
               label="mcpToken"
               contents={base64Token}
               obfuscatedContent={obfuscatedBase64Token}
+              overflow="hidden"
+              minWidth={0}
             />
           </VStack>
         </VStack>
