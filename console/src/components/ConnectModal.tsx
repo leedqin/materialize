@@ -31,6 +31,7 @@ import docUrls from "~/mz-doc-urls.json";
 import { useCreateApiToken } from "~/queries/frontegg";
 import { useListApiTokens } from "~/queries/frontegg";
 import { MaterializeTheme } from "~/theme";
+import { obfuscateSecret } from "~/utils/format";
 
 import { SecretCopyableBox } from "./copyableComponents";
 import SupportLink from "./SupportLink";
@@ -131,23 +132,47 @@ const CreateAppPasswordInner = ({ user }: { user: User }) => {
   }
 
   if (newPassword?.password) {
+    const base64Token = btoa(`${user.email}:${newPassword.password}`);
+    const obfuscatedBase64Token = obfuscateSecret(base64Token);
+
     return (
       <>
-        <VStack alignItems="stretch">
-          <Text
-            as="span"
-            fontSize="sm"
-            lineHeight="16px"
-            fontWeight={500}
-            color={colors.foreground.primary}
-          >
-            New app password
-          </Text>
-          <SecretCopyableBox
-            label="clientId"
-            contents={newPassword.password}
-            obfuscatedContent={newPassword.obfuscatedPassword}
-          />
+        <VStack alignItems="stretch" spacing="4">
+          <VStack alignItems="stretch" spacing="1">
+            <Text
+              as="span"
+              fontSize="sm"
+              lineHeight="16px"
+              fontWeight={500}
+              color={colors.foreground.primary}
+            >
+              New app password
+            </Text>
+            <SecretCopyableBox
+              label="clientId"
+              contents={newPassword.password}
+              obfuscatedContent={newPassword.obfuscatedPassword}
+            />
+          </VStack>
+          <VStack alignItems="stretch" spacing="1">
+            <Text
+              as="span"
+              fontSize="sm"
+              lineHeight="16px"
+              fontWeight={500}
+              color={colors.foreground.primary}
+            >
+              Token for MCP Server
+            </Text>
+            <Text fontSize="xs" color={colors.foreground.secondary}>
+              Base64-encoded token for MCP configuration.
+            </Text>
+            <SecretCopyableBox
+              label="mcpToken"
+              contents={base64Token}
+              obfuscatedContent={obfuscatedBase64Token}
+            />
+          </VStack>
         </VStack>
         <Text
           pt={1}
@@ -156,8 +181,8 @@ const CreateAppPasswordInner = ({ user }: { user: User }) => {
           fontWeight={400}
           color={colors.foreground.secondary}
         >
-          Copy this app password to somewhere safe. App passwords cannot be
-          displayed after initial creation.
+          Copy these to somewhere safe. They cannot be displayed after initial
+          creation.
         </Text>
       </>
     );

@@ -71,6 +71,7 @@ import {
   formatDate,
   FRIENDLY_DATETIME_FORMAT_NO_SECONDS,
 } from "~/utils/dateFormat";
+import { obfuscateSecret } from "~/utils/format";
 
 const AppPasswordsPage = ({ user }: { user: User }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -159,6 +160,7 @@ const AppPasswordsInner = (props: {
           name={newPassword.description}
           password={newPassword.password}
           obfuscatedContent={newPassword.obfuscatedPassword}
+          userEmail={user.email}
           onClose={() => setNewPasswordClosed(newPassword.clientId)}
         />
       )}
@@ -211,7 +213,7 @@ const AppPasswordsInner = (props: {
                           placement="right"
                           lineHeight="1.15"
                         >
-                          Service
+                          Services and agents
                         </Tooltip>
                       </Radio>
                     </Stack>
@@ -219,7 +221,7 @@ const AppPasswordsInner = (props: {
                   <FormHelperText>
                     {watchType == "personal"
                       ? `Personal app passwords are associated with your user account (${user.email}).`
-                      : "Service app passwords are associated with a user account of your choosing."}
+                      : "Service and agent app passwords are associated with a user account of your choosing."}
                   </FormHelperText>
                 </FormControl>
                 <FormControl isInvalid={!!formState.errors.name}>
@@ -462,6 +464,7 @@ type SecretBoxProps = {
   name: string;
   password: string;
   obfuscatedContent: string;
+  userEmail: string;
   onClose: () => void;
 };
 
@@ -469,9 +472,14 @@ const SecretBox = ({
   name,
   password,
   obfuscatedContent,
+  userEmail,
   onClose,
 }: SecretBoxProps) => {
   const { colors } = useTheme<MaterializeTheme>();
+
+  const base64Token = btoa(`${userEmail}:${password}`);
+  const obfuscatedBase64Token = obfuscateSecret(base64Token);
+
   return (
     <ChakraAlert
       status="info"
@@ -484,19 +492,39 @@ const SecretBox = ({
     >
       <VStack alignItems="flex-start" width="100%">
         <AlertDescription width="100%" px={2}>
-          <VStack alignItems="start">
-            <Text fontSize="md" fontWeight="500">
-              New password {`"${name}"`}:
-            </Text>
-            <SecretCopyableBox
-              label="clientId"
-              contents={password}
-              obfuscatedContent={obfuscatedContent}
-            />
+          <VStack alignItems="start" spacing="4">
+            <VStack alignItems="start" spacing="1">
+              <Text fontSize="md" fontWeight="500">
+                Password for services
+              </Text>
+              <Text fontSize="sm" color={colors.foreground.secondary}>
+                New password {`"${name}"`}:
+              </Text>
+              <SecretCopyableBox
+                label="clientId"
+                contents={password}
+                obfuscatedContent={obfuscatedContent}
+              />
+            </VStack>
+            <VStack alignItems="start" spacing="1">
+              <Text fontSize="md" fontWeight="500">
+                Token for MCP Server
+              </Text>
+              <Text fontSize="sm" color={colors.foreground.secondary}>
+                The Materialize MCP Server requires a Base64-encoded token in
+                the format of <code>{userEmail}:&lt;password&gt;</code>. Copy
+                this token into your MCP configuration.
+              </Text>
+              <SecretCopyableBox
+                label="mcpToken"
+                contents={base64Token}
+                obfuscatedContent={obfuscatedBase64Token}
+              />
+            </VStack>
           </VStack>
-          <Text pt={1} textStyle="text-base" color={colors.foreground.primary}>
-            Write this down; you will not be able to see your app password again
-            after you reload!
+          <Text pt={2} textStyle="text-base" color={colors.foreground.primary}>
+            Write this down; you will not be able to see your app password or
+            token again after you reload!
           </Text>
         </AlertDescription>
       </VStack>

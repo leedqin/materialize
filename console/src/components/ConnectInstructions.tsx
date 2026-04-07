@@ -15,10 +15,12 @@ import { useParams } from "react-router-dom";
 import { User } from "~/external-library-wrappers/frontegg";
 import { ClusterDetailParams } from "~/platform/clusters/ClusterRoutes";
 import { currentEnvironmentState } from "~/store/environments";
+import ConnectionIcon from "~/svg/ConnectionIcon";
 import { MonitorIcon } from "~/svg/Monitor";
 import TerminalIcon from "~/svg/Terminal";
 
 import { CopyableBox, TabbedCodeBlock } from "./copyableComponents";
+import McpConnectInstructions from "./McpConnectInstructions";
 
 export interface ConnectInstructionsProps extends BoxProps {
   /** The user string to display. Falls back to user.email if not provided. */
@@ -114,6 +116,11 @@ const ConnectInstructions = ({
           title: "Terminal",
           contents: psqlCopyString,
           icon: <TerminalIcon w="4" h="4" />,
+        },
+        {
+          title: "MCP Server",
+          children: <McpConnectInstructions userStr={userStr} />,
+          icon: <ConnectionIcon w="4" h="4" />,
         },
       ]}
       minHeight="208px"
