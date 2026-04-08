@@ -31,6 +31,8 @@ export interface ConnectInstructionsProps extends BoxProps {
   environmentdAddress?: string;
   /** Override the query params in the psql connection string. */
   psqlQueryParams?: string;
+  /** Pre-computed Base64 token for MCP configuration (cloud only). */
+  mcpBase64Token?: string;
 }
 
 const ConnectInstructions = ({
@@ -119,7 +121,12 @@ const ConnectInstructions = ({
         },
         {
           title: "MCP Server",
-          children: <McpConnectInstructions userStr={userStr} />,
+          children: (
+            <McpConnectInstructions
+              userStr={userStr}
+              mcpBase64Token={props.mcpBase64Token}
+            />
+          ),
           icon: <ConnectionIcon w="4" h="4" />,
         },
       ]}

@@ -492,12 +492,9 @@ const SecretBox = ({
     >
       <VStack alignItems="flex-start" width="100%">
         <AlertDescription width="100%" px={2}>
-          <VStack alignItems="start" spacing="4">
-            <VStack alignItems="start" spacing="1">
+          <VStack alignItems="start" spacing="3">
+            <VStack alignItems="start" spacing="1" width="100%">
               <Text fontSize="md" fontWeight="500">
-                Password for services
-              </Text>
-              <Text fontSize="sm" color={colors.foreground.secondary}>
                 New password {`"${name}"`}:
               </Text>
               <SecretCopyableBox
@@ -506,14 +503,9 @@ const SecretBox = ({
                 obfuscatedContent={obfuscatedContent}
               />
             </VStack>
-            <VStack alignItems="start" spacing="1">
+            <VStack alignItems="start" spacing="1" width="100%">
               <Text fontSize="md" fontWeight="500">
-                Token for MCP Server
-              </Text>
-              <Text fontSize="sm" color={colors.foreground.secondary}>
-                The Materialize MCP Server requires a Base64-encoded token in
-                the format of <code>{userEmail}:&lt;password&gt;</code>. Copy
-                this token into your MCP configuration.
+                MCP Token
               </Text>
               <SecretCopyableBox
                 label="mcpToken"
@@ -522,11 +514,15 @@ const SecretBox = ({
                 overflow="hidden"
                 minWidth={0}
               />
+              <Text fontSize="xs" color={colors.foreground.secondary}>
+                Base64-encoded <code>{userEmail}:&lt;password&gt;</code> for MCP
+                configuration.
+              </Text>
             </VStack>
           </VStack>
           <Text pt={2} textStyle="text-base" color={colors.foreground.primary}>
-            Write this down; you will not be able to see your app password or
-            token again after you reload!
+            Write this down; you will not be able to see your credentials again
+            after you reload!
           </Text>
         </AlertDescription>
       </VStack>

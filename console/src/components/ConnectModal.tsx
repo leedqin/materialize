@@ -31,7 +31,6 @@ import docUrls from "~/mz-doc-urls.json";
 import { useCreateApiToken } from "~/queries/frontegg";
 import { useListApiTokens } from "~/queries/frontegg";
 import { MaterializeTheme } from "~/theme";
-import { obfuscateSecret } from "~/utils/format";
 
 import { SecretCopyableBox } from "./copyableComponents";
 import SupportLink from "./SupportLink";
@@ -57,6 +56,15 @@ const ConnectModal = ({
 }) => {
   const { colors } = useTheme<MaterializeTheme>();
   const showCreateAppPassword = !forAppPassword;
+  const {
+    mutate: createAppPassword,
+    isPending: createInProgress,
+    data: newPassword,
+  } = useCreateApiToken();
+
+  const mcpBase64Token = newPassword?.password
+    ? btoa(`${user.email}:${newPassword.password}`)
+    : undefined;
 
   return (
     <Modal size="3xl" isOpen={isOpen} onClose={onClose}>
@@ -84,11 +92,17 @@ const ConnectModal = ({
           <ConnectInstructions
             user={user}
             userStr={forAppPassword?.user}
+            mcpBase64Token={mcpBase64Token}
             mt="4"
           />
           {showCreateAppPassword && (
             <Box mt="6">
-              <CreateAppPassword user={user} />
+              <CreateAppPassword
+                user={user}
+                createAppPassword={createAppPassword}
+                createInProgress={createInProgress}
+                newPassword={newPassword}
+              />
             </Box>
           )}
         </ModalBody>
@@ -97,7 +111,14 @@ const ConnectModal = ({
   );
 };
 
-const CreateAppPassword = ({ user }: { user: User }) => {
+interface CreateAppPasswordProps {
+  user: User;
+  createAppPassword: ReturnType<typeof useCreateApiToken>["mutate"];
+  createInProgress: boolean;
+  newPassword: ReturnType<typeof useCreateApiToken>["data"];
+}
+
+const CreateAppPassword = (props: CreateAppPasswordProps) => {
   const { colors } = useTheme<MaterializeTheme>();
 
   return (
@@ -108,19 +129,19 @@ const CreateAppPassword = ({ user }: { user: User }) => {
         </Flex>
       }
     >
-      <CreateAppPasswordInner user={user} />
+      <CreateAppPasswordInner {...props} />
     </React.Suspense>
   );
 };
 
-const CreateAppPasswordInner = ({ user }: { user: User }) => {
+const CreateAppPasswordInner = ({
+  user,
+  createAppPassword,
+  createInProgress,
+  newPassword,
+}: CreateAppPasswordProps) => {
   const { data: appPasswords } = useListApiTokens({ user });
   const { colors } = useTheme<MaterializeTheme>();
-  const {
-    mutate: createAppPassword,
-    isPending: createInProgress,
-    data: newPassword,
-  } = useCreateApiToken();
 
   if (createInProgress) {
     return (
@@ -132,49 +153,23 @@ const CreateAppPasswordInner = ({ user }: { user: User }) => {
   }
 
   if (newPassword?.password) {
-    const base64Token = btoa(`${user.email}:${newPassword.password}`);
-    const obfuscatedBase64Token = obfuscateSecret(base64Token);
-
     return (
       <>
-        <VStack alignItems="stretch" spacing="4">
-          <VStack alignItems="stretch" spacing="1">
-            <Text
-              as="span"
-              fontSize="sm"
-              lineHeight="16px"
-              fontWeight={500}
-              color={colors.foreground.primary}
-            >
-              New app password
-            </Text>
-            <SecretCopyableBox
-              label="clientId"
-              contents={newPassword.password}
-              obfuscatedContent={newPassword.obfuscatedPassword}
-            />
-          </VStack>
-          <VStack alignItems="stretch" spacing="1">
-            <Text
-              as="span"
-              fontSize="sm"
-              lineHeight="16px"
-              fontWeight={500}
-              color={colors.foreground.primary}
-            >
-              Token for MCP Server
-            </Text>
-            <Text fontSize="xs" color={colors.foreground.secondary}>
-              Base64-encoded token for MCP configuration.
-            </Text>
-            <SecretCopyableBox
-              label="mcpToken"
-              contents={base64Token}
-              obfuscatedContent={obfuscatedBase64Token}
-              overflow="hidden"
-              minWidth={0}
-            />
-          </VStack>
+        <VStack alignItems="stretch">
+          <Text
+            as="span"
+            fontSize="sm"
+            lineHeight="16px"
+            fontWeight={500}
+            color={colors.foreground.primary}
+          >
+            New app password
+          </Text>
+          <SecretCopyableBox
+            label="clientId"
+            contents={newPassword.password}
+            obfuscatedContent={newPassword.obfuscatedPassword}
+          />
         </VStack>
         <Text
           pt={1}
@@ -183,8 +178,8 @@ const CreateAppPasswordInner = ({ user }: { user: User }) => {
           fontWeight={400}
           color={colors.foreground.secondary}
         >
-          Copy these to somewhere safe. They cannot be displayed after initial
-          creation.
+          Copy this somewhere safe. App passwords cannot be displayed after
+          initial creation.
         </Text>
       </>
     );

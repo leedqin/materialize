@@ -14,11 +14,19 @@ import React from "react";
 import { useAppConfig } from "~/config/useAppConfig";
 import { currentEnvironmentState } from "~/store/environments";
 import { MaterializeTheme } from "~/theme";
+import { obfuscateSecret } from "~/utils/format";
 
-import { CopyableBox, TabbedCodeBlock } from "./copyableComponents";
+import Alert from "./Alert";
+import {
+  CopyableBox,
+  SecretCopyableBox,
+  TabbedCodeBlock,
+} from "./copyableComponents";
 
 export interface McpConnectInstructionsProps extends BoxProps {
   userStr: string;
+  /** Pre-computed Base64 token for MCP configuration (cloud only). */
+  mcpBase64Token?: string;
 }
 
 const mcpConfigJson = (
@@ -44,6 +52,7 @@ const mcpConfigJson = (
 
 const McpConnectInstructions = ({
   userStr,
+  mcpBase64Token,
   ...props
 }: McpConnectInstructionsProps) => {
   const { colors } = useTheme<MaterializeTheme>();
@@ -81,6 +90,17 @@ const McpConnectInstructions = ({
       maxHeight="60vh"
       {...props}
     >
+      <Alert
+        variant="info"
+        showLabel={false}
+        minWidth="0"
+        overflow="visible"
+        message={
+          isCloud
+            ? "The MCP server is not enabled by default. Contact Materialize support to enable the MCP endpoints for your environment."
+            : "The MCP server is not enabled by default. Set enable_mcp_agents and enable_mcp_observatory to true in your system parameters configuration."
+        }
+      />
       <Text fontSize="sm" color={colors.foreground.secondary}>
         Connect your AI agent or coding assistant to Materialize using the
         built-in MCP server.
@@ -94,6 +114,24 @@ const McpConnectInstructions = ({
             : "Use a SQL role with LOGIN and PASSWORD privileges. Run the following in your terminal:"}
         </Text>
         <CopyableBox variant="default" contents={base64Command} />
+        {isCloud && mcpBase64Token && (
+          <>
+            <Text
+              fontSize="sm"
+              fontWeight="500"
+              color={colors.foreground.primary}
+            >
+              Your MCP token
+            </Text>
+            <SecretCopyableBox
+              label="mcpToken"
+              contents={mcpBase64Token}
+              obfuscatedContent={obfuscateSecret(mcpBase64Token)}
+              overflow="hidden"
+              minWidth={0}
+            />
+          </>
+        )}
       </VStack>
 
       <VStack alignItems="stretch" spacing="2">
