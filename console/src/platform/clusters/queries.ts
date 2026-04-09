@@ -70,6 +70,7 @@ import { fetchLagHistory } from "~/api/materialize/freshness/lagHistory";
 import { assertNoMoreThanOneRow } from "~/api/materialize/MoreThanOneRowError";
 import { DataPoint, GraphLineSeries } from "~/components/FreshnessGraph/types";
 import { DEFAULT_OPTIONS as TIME_PERIOD_OPTIONS } from "~/hooks/useTimePeriodSelect";
+import { useAllClusters } from "~/store/allClusters";
 import { notNullOrUndefined, sumPostgresIntervalMs } from "~/util";
 import { sortLagInfo } from "~/utils/freshness";
 
@@ -157,8 +158,14 @@ export const clusterQueryKeys = {
 };
 
 export function useClusters(filters?: ClusterListFilters) {
-  const suspenseQueryResult = useSuspenseQuery({
-    refetchInterval: 5000,
+  // Live cluster data from the existing WebSocket SUBSCRIBE (no HTTP polling).
+  const {
+    data: subscribeClusters,
+    snapshotComplete,
+  } = useAllClusters();
+
+  // One-time ownership fetch — runs once, never polls.
+  const ownershipQuery = useSuspenseQuery({
     queryKey: clusterQueryKeys.list(filters),
     queryFn: ({ queryKey, signal }) => {
       const [, filtersKeyPart] = queryKey;
@@ -168,16 +175,37 @@ export function useClusters(filters?: ClusterListFilters) {
         requestOptions: { signal },
       });
     },
-    select: (data) => {
-      return data.rows;
-    },
+    select: (data) => data.rows,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
-  const clusterMap = useMemo(() => {
+  // Build an ownership map from the one-time fetch.
+  const ownershipMap = useMemo(() => {
     return new Map(
-      suspenseQueryResult.data.map((cluster) => [cluster.id, cluster]),
+      ownershipQuery.data.map((c) => [c.id, c.isOwner] as const),
     );
-  }, [suspenseQueryResult.data]);
+  }, [ownershipQuery.data]);
+
+  // Merge SUBSCRIBE data with ownership info.
+  const data = useMemo(() => {
+    const clusters = subscribeClusters.map((c) => ({
+      ...c,
+      isOwner: ownershipMap.get(c.id) ?? false,
+    }));
+
+    // Apply includeSystemObjects filter if specified.
+    if (filters && !filters.includeSystemObjects) {
+      return clusters.filter((c) => c.id.startsWith("u"));
+    }
+    return clusters;
+  }, [subscribeClusters, ownershipMap, filters]);
+
+  const clusterMap = useMemo(() => {
+    return new Map(data.map((cluster) => [cluster.id, cluster]));
+  }, [data]);
 
   const getClusterById = useCallback(
     (clusterId: string) => {
@@ -187,8 +215,10 @@ export function useClusters(filters?: ClusterListFilters) {
   );
 
   return {
-    ...suspenseQueryResult,
+    data,
     getClusterById,
+    refetch: ownershipQuery.refetch,
+    isLoading: !snapshotComplete,
   };
 }
 
@@ -217,6 +247,8 @@ export function useAlterCluster() {
 export function useIndexesList(filters: ListFilters) {
   return useSuspenseQuery({
     refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
     queryKey: clusterQueryKeys.indexesList(filters),
     queryFn: ({ queryKey, signal }) => {
       const [, filtersKeyPart] = queryKey;
@@ -232,6 +264,8 @@ export function useIndexesList(filters: ListFilters) {
 export function useLargestClusterReplica(params: LargestClusterReplicaParams) {
   return useSuspenseQuery({
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
     queryKey: clusterQueryKeys.largestClusterReplica(params),
     queryFn: async ({ queryKey, signal }) => {
       const [, paramsFromKey] = queryKey;
@@ -259,6 +293,8 @@ export function useLargestMaintainedQueries(
 ) {
   return useSuspenseQuery({
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
     queryKey: clusterQueryKeys.largestMaintainedQueries(params),
     queryFn: ({ queryKey, signal }) => {
       const [, paramsFromKey] = queryKey;
@@ -366,6 +402,8 @@ export function useClusterReplicasWithUtilization(
   return useSuspenseQuery({
     queryKey: clusterQueryKeys.replicasWithUtilization(params),
     refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
     queryFn: ({ queryKey, signal }) => {
       const [, queryKeyParams] = queryKey;
       return fetchClusterReplicasWithUtilization(queryKeyParams, queryKey, {
@@ -384,6 +422,8 @@ export function useClusterReplicasWithUtilization(
 export function useArrangmentsMemory(params: ArrangmentMemoryUsageParams) {
   return useQuery({
     refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
     queryKey: clusterQueryKeys.arrangementMemory(params),
     queryFn: async ({ queryKey, signal }) => {
       const [, queryKeyParams] = queryKey;
@@ -456,6 +496,8 @@ export function useReplicaUtilizationHistory(
   return useQuery({
     queryKey: clusterQueryKeys.replicaUtilizationHistory(params),
     refetchInterval: 20_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
     enabled: queryOptions?.enabled,
     queryFn: async ({ queryKey, signal }) => {
       const [, queryKeyParams] = queryKey;

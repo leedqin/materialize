@@ -42,6 +42,7 @@ import { DbVersion, parseDbVersion } from "~/version/api";
 
 import storageAvailable from "../utils/storageAvailable";
 import { CloudRegion, cloudRegionsSelector } from "./cloudRegions";
+import { subscribeDerivedHealthAtom } from "./subscribeHealth";
 
 /** Details about errors fetching environment health. */
 export interface EnvironmentError {
@@ -317,6 +318,12 @@ export const usePollEnvironmentHealth = (options: { intervalMs: number }) => {
   const [environmentMap, setValue] = useAtom(environmentsWithHealth);
   const [cloudRegions] = useAtom(cloudRegionsSelector);
   const appConfig = useAtomValue(appConfigAtom);
+  const subscribeHealth = useAtomValue(subscribeDerivedHealthAtom);
+
+  // Poll during bootstrap ("unknown") and when all subscribes are down ("unhealthy").
+  // Stop polling once any subscribe is connected and receiving data ("healthy"),
+  // since subscribe progress messages already prove the environment is reachable.
+  const shouldPoll = subscribeHealth !== "healthy";
 
   // The environment objects are used in dependency arrays,
   // so the refrences need to be stable
@@ -344,7 +351,7 @@ export const usePollEnvironmentHealth = (options: { intervalMs: number }) => {
 
   useSuspenseQuery({
     queryKey: environmentQueryKeys.environmentHealth(cloudRegions),
-    refetchInterval: options.intervalMs,
+    refetchInterval: shouldPoll ? options.intervalMs : false,
     queryFn: async ({ queryKey: [, regions] }) => {
       return Sentry.startSpan(
         {
