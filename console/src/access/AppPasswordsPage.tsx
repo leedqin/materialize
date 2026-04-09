@@ -71,6 +71,7 @@ import {
   formatDate,
   FRIENDLY_DATETIME_FORMAT_NO_SECONDS,
 } from "~/utils/dateFormat";
+import { toBase64 } from "~/utils/format";
 import { obfuscateSecret } from "~/utils/format";
 
 const AppPasswordsPage = ({ user }: { user: User }) => {
@@ -144,6 +145,7 @@ const AppPasswordsInner = (props: {
   });
 
   const [newPasswordClosed, setNewPasswordClosed] = useState("");
+  const [newPasswordUser, setNewPasswordUser] = useState<string | null>(null);
 
   const watchType = watch("type");
 
@@ -160,7 +162,7 @@ const AppPasswordsInner = (props: {
           name={newPassword.description}
           password={newPassword.password}
           obfuscatedContent={newPassword.obfuscatedPassword}
-          userEmail={user.email}
+          userEmail={newPasswordUser ?? user.email}
           onClose={() => setNewPasswordClosed(newPassword.clientId)}
         />
       )}
@@ -177,6 +179,7 @@ const AppPasswordsInner = (props: {
         <ModalContent>
           <form
             onSubmit={handleSubmit((data) => {
+              setNewPasswordUser(data.type === "service" ? data.user : null);
               createAppPassword({
                 type: data.type,
                 description: data.name,
@@ -477,7 +480,7 @@ const SecretBox = ({
 }: SecretBoxProps) => {
   const { colors } = useTheme<MaterializeTheme>();
 
-  const base64Token = btoa(`${userEmail}:${password}`);
+  const base64Token = toBase64(`${userEmail}:${password}`);
   const obfuscatedBase64Token = obfuscateSecret(base64Token);
 
   return (

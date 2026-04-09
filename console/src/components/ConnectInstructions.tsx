@@ -33,10 +33,14 @@ export interface ConnectInstructionsProps extends BoxProps {
   psqlQueryParams?: string;
   /** Pre-computed Base64 token for MCP configuration (cloud only). */
   mcpBase64Token?: string;
+  /** Called when the active tab changes. */
+  onTabChange?: (title: string) => void;
 }
 
 const ConnectInstructions = ({
   user,
+  onTabChange,
+  mcpBase64Token,
   ...props
 }: ConnectInstructionsProps): JSX.Element => {
   const [currentEnvironment] = useAtom(currentEnvironmentState);
@@ -124,12 +128,13 @@ const ConnectInstructions = ({
           children: (
             <McpConnectInstructions
               userStr={userStr}
-              mcpBase64Token={props.mcpBase64Token}
+              mcpBase64Token={mcpBase64Token}
             />
           ),
           icon: <ConnectionIcon w="4" h="4" />,
         },
       ]}
+      onTabChange={onTabChange}
       minHeight="208px"
       {...props}
     />

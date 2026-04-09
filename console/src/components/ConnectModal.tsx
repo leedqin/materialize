@@ -22,7 +22,7 @@ import {
   useTheme,
   VStack,
 } from "@chakra-ui/react";
-import React from "react";
+import React, { useState } from "react";
 
 import ConnectInstructions from "~/components/ConnectInstructions";
 import { Modal } from "~/components/Modal";
@@ -31,6 +31,7 @@ import docUrls from "~/mz-doc-urls.json";
 import { useCreateApiToken } from "~/queries/frontegg";
 import { useListApiTokens } from "~/queries/frontegg";
 import { MaterializeTheme } from "~/theme";
+import { obfuscateSecret, toBase64 } from "~/utils/format";
 
 import { SecretCopyableBox } from "./copyableComponents";
 import SupportLink from "./SupportLink";
@@ -56,14 +57,16 @@ const ConnectModal = ({
 }) => {
   const { colors } = useTheme<MaterializeTheme>();
   const showCreateAppPassword = !forAppPassword;
+  const [activeTab, setActiveTab] = useState("External tools");
   const {
     mutate: createAppPassword,
     isPending: createInProgress,
     data: newPassword,
   } = useCreateApiToken();
 
+  const mcpUser = forAppPassword?.user ?? user.email;
   const mcpBase64Token = newPassword?.password
-    ? btoa(`${user.email}:${newPassword.password}`)
+    ? toBase64(`${mcpUser}:${newPassword.password}`)
     : undefined;
 
   return (
@@ -93,6 +96,7 @@ const ConnectModal = ({
             user={user}
             userStr={forAppPassword?.user}
             mcpBase64Token={mcpBase64Token}
+            onTabChange={setActiveTab}
             mt="4"
           />
           {showCreateAppPassword && (
@@ -102,6 +106,8 @@ const ConnectModal = ({
                 createAppPassword={createAppPassword}
                 createInProgress={createInProgress}
                 newPassword={newPassword}
+                mcpBase64Token={mcpBase64Token}
+                showMcpToken={activeTab === "MCP Server"}
               />
             </Box>
           )}
@@ -116,6 +122,8 @@ interface CreateAppPasswordProps {
   createAppPassword: ReturnType<typeof useCreateApiToken>["mutate"];
   createInProgress: boolean;
   newPassword: ReturnType<typeof useCreateApiToken>["data"];
+  mcpBase64Token?: string;
+  showMcpToken: boolean;
 }
 
 const CreateAppPassword = (props: CreateAppPasswordProps) => {
@@ -139,6 +147,8 @@ const CreateAppPasswordInner = ({
   createAppPassword,
   createInProgress,
   newPassword,
+  mcpBase64Token,
+  showMcpToken,
 }: CreateAppPasswordProps) => {
   const { data: appPasswords } = useListApiTokens({ user });
   const { colors } = useTheme<MaterializeTheme>();
@@ -171,6 +181,26 @@ const CreateAppPasswordInner = ({
             obfuscatedContent={newPassword.obfuscatedPassword}
           />
         </VStack>
+        {showMcpToken && mcpBase64Token && (
+          <VStack alignItems="stretch" mt="3">
+            <Text
+              as="span"
+              fontSize="sm"
+              lineHeight="16px"
+              fontWeight={500}
+              color={colors.foreground.primary}
+            >
+              MCP Token
+            </Text>
+            <SecretCopyableBox
+              label="mcpToken"
+              contents={mcpBase64Token}
+              obfuscatedContent={obfuscateSecret(mcpBase64Token)}
+              overflow="hidden"
+              minWidth={0}
+            />
+          </VStack>
+        )}
         <Text
           pt={1}
           fontSize="sm"
