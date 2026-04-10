@@ -132,10 +132,10 @@ const McpConnectInstructions = ({
       </VStack>
 
       <VStack alignItems="stretch" spacing="2">
-        <Text textStyle="heading-xs">Step 1. Get your Base64 token</Text>
+        <Text textStyle="heading-xs">Step 1. Get your MCP token</Text>
         <Text fontSize="sm" color={colors.foreground.secondary}>
           {isCloud
-            ? "Create an app password (under Account > App Passwords), then run the following in your terminal:"
+            ? "Create a new app password and copy the MCP Token, or encode an existing app password by running the following in your terminal:"
             : "Use a role with login and password attributes. Run the following in your terminal:"}
         </Text>
         <CopyableBox variant="default" contents={base64Command} />

@@ -165,24 +165,8 @@ const CreateAppPasswordInner = ({
   if (newPassword?.password) {
     return (
       <>
-        <VStack alignItems="stretch">
-          <Text
-            as="span"
-            fontSize="sm"
-            lineHeight="16px"
-            fontWeight={500}
-            color={colors.foreground.primary}
-          >
-            New app password
-          </Text>
-          <SecretCopyableBox
-            label="clientId"
-            contents={newPassword.password}
-            obfuscatedContent={newPassword.obfuscatedPassword}
-          />
-        </VStack>
         {showMcpToken && mcpBase64Token && (
-          <VStack alignItems="stretch" mt="3">
+          <VStack alignItems="stretch" mb="3">
             <Text
               as="span"
               fontSize="sm"
@@ -190,7 +174,7 @@ const CreateAppPasswordInner = ({
               fontWeight={500}
               color={colors.foreground.primary}
             >
-              MCP Token
+              MCP token
             </Text>
             <SecretCopyableBox
               label="mcpToken"
@@ -201,6 +185,22 @@ const CreateAppPasswordInner = ({
             />
           </VStack>
         )}
+        <VStack alignItems="stretch">
+          <Text
+            as="span"
+            fontSize="sm"
+            lineHeight="16px"
+            fontWeight={500}
+            color={colors.foreground.primary}
+          >
+            App password
+          </Text>
+          <SecretCopyableBox
+            label="clientId"
+            contents={newPassword.password}
+            obfuscatedContent={newPassword.obfuscatedPassword}
+          />
+        </VStack>
         <Text
           pt={1}
           fontSize="sm"
