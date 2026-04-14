@@ -52,6 +52,7 @@ const environmentOverviewQueryKeys = {
 
 const UTILIZATION_LOOKBACK_DAYS = 14;
 const EIGHT_HOURS_IN_MS = 8 * 60 * 60 * 1000;
+export const LINE_MAX_COUNT = 10;
 
 export function useClusterMemDiskUtilization() {
   return useSuspenseQuery({
@@ -272,7 +273,8 @@ export function useClusterFreshnessHistorical({
           return lastRow;
         })
         .filter(notNullOrUndefined)
-        .sort(sortLagInfo);
+        .sort(sortLagInfo)
+        .slice(0, LINE_MAX_COUNT);
 
       const lines = currentDataByClusterId.map((row) => {
         return {

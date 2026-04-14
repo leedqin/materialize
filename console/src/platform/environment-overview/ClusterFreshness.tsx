@@ -48,6 +48,7 @@ import { formatInterval, formatIntervalShort } from "~/utils/format";
 
 import {
   CurrentClusterFreshnessData,
+  LINE_MAX_COUNT,
   useClusterFreshnessHistorical,
 } from "./queries";
 
@@ -195,6 +196,7 @@ const FreshnessGraphWrapper = ({
         data={historicalData}
         startTime={startTime}
         endTime={endTime}
+        maxTooltipLines={LINE_MAX_COUNT}
         renderTooltipLabel={TooltipLabel}
       />
       <ClusterFreshnessTable data={currentData} />
