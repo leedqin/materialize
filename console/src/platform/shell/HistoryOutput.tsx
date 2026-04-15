@@ -8,9 +8,18 @@
 // by the Apache License, Version 2.0.
 
 import { RepeatIcon } from "@chakra-ui/icons";
-import { Button, HStack, StackProps, VStack } from "@chakra-ui/react";
+import {
+  Button,
+  Code,
+  HStack,
+  StackProps,
+  useTheme,
+  VStack,
+} from "@chakra-ui/react";
 import { useAtom } from "jotai";
 import React, { forwardRef } from "react";
+
+import { MaterializeTheme } from "~/theme";
 
 import { CommandBlockOutputContainer } from "./CommandBlockOutputContainer";
 import CommandResult from "./CommandResult";
@@ -38,6 +47,7 @@ const CommandOutput = ({
   commandResults: CommandResultType[];
 }) => {
   const error = commandOutput.error;
+  const { colors } = useTheme<MaterializeTheme>();
   const { send, isSocketAvailable } = useShellWebsocket();
   const [{ webSocketState }] = useAtom(shellStateAtom);
   const canRetry = isSocketAvailable && webSocketState === "readyForQuery";
@@ -75,7 +85,10 @@ const CommandOutput = ({
           );
         })}
         {commandOutput.interrupted && (
-          <HStack justifyContent="flex-end" width="100%" mt="1">
+          <HStack justifyContent="flex-end" width="100%" mt="1" spacing="2">
+            <Code color={colors.accent.red}>
+              Command interrupted due to a connection loss.
+            </Code>
             <Button
               leftIcon={<RepeatIcon />}
               variant="tertiary"
