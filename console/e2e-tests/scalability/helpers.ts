@@ -570,73 +570,141 @@ function printConcurrencySummary(records: QueryRecord[]) {
 
 const HISTOGRAM_BUCKET_MS = 10_000;
 
-/** Peak concurrent requests per fixed-interval bucket — the highest number of
- * requests simultaneously in flight at any instant within each window. */
-function printConcurrencyHistogram(records: QueryRecord[]) {
+interface ConcurrencyBucket {
+  /** Highest number of requests in flight at any instant in the bucket. */
+  peak: number;
+  /** SQL labels of the requests active at the moment of the peak. */
+  activeQueries: string[];
+}
+
+/** Sweep-line: walk +1/-1 events in time order, tracking peak concurrency
+ * per fixed-size bucket along with the queries active at each peak. */
+function calculateConcurrencyHistogram(
+  records: QueryRecord[],
+  bucketSizeMs: number = HISTOGRAM_BUCKET_MS,
+): ConcurrencyBucket[] {
+  // Incomplete requests have no end time; can't place them on the curve.
   const completed = records.filter((r) => !r.incomplete);
-  if (completed.length === 0) return;
+  if (completed.length === 0) return [];
 
-  const starts = completed.map(
-    (r) => new Date(r.timestamp).getTime() - r.durationMs,
-  );
-  const ends = completed.map((r) => new Date(r.timestamp).getTime());
-  const windowStart = Math.min(...starts);
-  const windowEnd = Math.max(...ends);
-  const bucketCount = Math.ceil(
-    (windowEnd - windowStart) / HISTOGRAM_BUCKET_MS,
-  );
-  if (bucketCount <= 1) return;
-
-  // Concurrency only goes up when a request starts, so the peak in a window
-  // is the max active count sampled at the window's start (catches anything
-  // already in flight) plus every request start that falls inside it.
-  const activeIndicesAt = (t: number) =>
-    starts.reduce<number[]>((idxs, s, j) => {
-      if (s <= t && ends[j] > t) idxs.push(j);
-      return idxs;
-    }, []);
-
-  const buckets: { peak: number; sqls: string[] }[] = [];
-  for (let i = 0; i < bucketCount; i++) {
-    const bucketStart = windowStart + i * HISTOGRAM_BUCKET_MS;
-    const bucketEnd = bucketStart + HISTOGRAM_BUCKET_MS;
-    const samplePoints = [
-      bucketStart,
-      ...starts.filter((s) => s >= bucketStart && s < bucketEnd),
-    ];
-    let peak = 0;
-    let peakIdxs: number[] = [];
-    for (const t of samplePoints) {
-      const idxs = activeIndicesAt(t);
-      if (idxs.length > peak) {
-        peak = idxs.length;
-        peakIdxs = idxs;
-      }
-    }
-    buckets.push({ peak, sqls: peakIdxs.map((j) => completed[j].sql) });
+  // Build a timeline of every moment concurrency changes. Each request
+  // contributes two: one "start" (a request joins the in-flight set) and
+  // one "end" (a request leaves it).
+  type Event = { time: number; type: "start" | "end"; index: number };
+  const events: Event[] = [];
+  for (let i = 0; i < completed.length; i++) {
+    const end = new Date(completed[i].timestamp).getTime();
+    const start = end - completed[i].durationMs;
+    events.push({ time: start, type: "start", index: i });
+    events.push({ time: end, type: "end", index: i });
   }
+  events.sort((a, b) =>
+    a.time !== b.time ? a.time - b.time : a.type === "end" ? -1 : 1,
+  );
+
+  const windowStart = events[0].time;
+  const windowEnd = events[events.length - 1].time;
+  const bucketCount = Math.ceil((windowEnd - windowStart) / bucketSizeMs);
+  if (bucketCount <= 1) return [];
+
+  const bucketIndexFor = (t: number) =>
+    Math.min(Math.floor((t - windowStart) / bucketSizeMs), bucketCount - 1);
+
+  const buckets: ConcurrencyBucket[] = Array.from(
+    { length: bucketCount },
+    () => ({ peak: 0, activeQueries: [] }),
+  );
+
+  const currentlyActive = new Set<number>();
+  const recordPeakAt = (bucketIndex: number) => {
+    const bucket = buckets[bucketIndex];
+    if (currentlyActive.size > bucket.peak) {
+      bucket.peak = currentlyActive.size;
+      bucket.activeQueries = [...currentlyActive].map((i) => completed[i].sql);
+    }
+  };
+
+  let currentBucketIndex = bucketIndexFor(events[0].time);
+  const advanceBucketTo = (target: number) => {
+    while (currentBucketIndex < target) {
+      currentBucketIndex++;
+      recordPeakAt(currentBucketIndex);
+    }
+  };
+
+  for (const event of events) {
+    advanceBucketTo(bucketIndexFor(event.time));
+    if (event.type === "start") {
+      currentlyActive.add(event.index);
+    } else {
+      currentlyActive.delete(event.index);
+    }
+    recordPeakAt(currentBucketIndex);
+  }
+
+  return buckets;
+}
+
+/** Group active queries by sql label and format as `Nx label, Mx label, ...`
+ * sorted by frequency. */
+function summarizeActiveQueries(queries: string[]): string {
+  const counts = new Map<string, number>();
+  for (const sql of queries) counts.set(sql, (counts.get(sql) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([sql, n]) => `${n}x ${sql}`)
+    .join(", ");
+}
+
+/** Render a precomputed concurrency histogram as vertical ASCII bars (time
+ * on the X axis, peak count on the Y axis), followed by per-bucket query
+ * breakdowns for any window with peak > 1. */
+function renderConcurrencyHistogram(
+  buckets: ConcurrencyBucket[],
+  bucketSizeMs: number = HISTOGRAM_BUCKET_MS,
+) {
+  if (buckets.length === 0) return;
+
+  const maxPeak = Math.max(1, ...buckets.map((b) => b.peak));
+  const yLabelWidth = String(maxPeak).length;
+  const colWidth = 4;
+  const padCol = (s: string) => s.padEnd(colWidth);
+  const yIndent = " ".repeat(yLabelWidth);
 
   console.log(
-    `\n=== Peak concurrent requests per ${HISTOGRAM_BUCKET_MS / 1000}s window ===`,
+    `\n=== Peak concurrent requests per ${bucketSizeMs / 1000}s window ===`,
   );
-  const maxPeak = Math.max(1, ...buckets.map((b) => b.peak));
-  for (let i = 0; i < buckets.length; i++) {
-    const { peak, sqls } = buckets[i];
-    const offsetSec = (i * HISTOGRAM_BUCKET_MS) / 1000;
-    const bar = "#".repeat(Math.round((peak / maxPeak) * 30));
-    console.log(
-      `  +${String(offsetSec).padStart(4)}s  ${String(peak).padStart(3)}  ${bar}`,
-    );
-    // For buckets with actual concurrency, list which queries collided so we
-    // can see whether the spike is one repeated poll or several distinct ones.
-    if (peak > 1) {
-      const counts = new Map<string, number>();
-      for (const sql of sqls) counts.set(sql, (counts.get(sql) ?? 0) + 1);
-      for (const [sql, n] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
-        console.log(`             ${n}x ${sql}`);
-      }
-    }
+
+  // Vertical bars, one row per peak level (top to bottom).
+  for (let row = maxPeak; row >= 1; row--) {
+    const bars = buckets.map((b) => padCol(b.peak >= row ? "█" : " ")).join("");
+    console.log(`${String(row).padStart(yLabelWidth)} │${bars}`);
   }
+
+  // X-axis line and time labels.
+  console.log(`${yIndent} └${"─".repeat(buckets.length * colWidth + 1)}`);
+  const xLabels = buckets
+    .map((_, i) => padCol(String((i * bucketSizeMs) / 1000)))
+    .join("");
+  console.log(`${yIndent}  ${xLabels}s`);
+
+  // Breakdowns for buckets where multiple queries collided.
+  if (!buckets.some((b) => b.peak > 1)) return;
+  console.log("\nBucket breakdowns (peak > 1):");
+  for (let i = 0; i < buckets.length; i++) {
+    const b = buckets[i];
+    if (b.peak <= 1) continue;
+    const offsetSec = (i * bucketSizeMs) / 1000;
+    console.log(
+      `  +${String(offsetSec).padStart(4)}s (peak ${b.peak}):  ${summarizeActiveQueries(b.activeQueries)}`,
+    );
+  }
+}
+
+/** Peak concurrent requests per fixed-interval bucket — calculate from
+ * records and render as vertical bars. */
+function printConcurrencyHistogram(records: QueryRecord[]) {
+  renderConcurrencyHistogram(calculateConcurrencyHistogram(records));
 }
 
 export function printPerTabSummary(
