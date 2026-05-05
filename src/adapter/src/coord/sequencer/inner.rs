@@ -2876,6 +2876,9 @@ impl Coordinator {
                                 PeekResponseUnary::Error(e) => {
                                     break Err(AdapterError::Unstructured(anyhow!(e)));
                                 }
+                                PeekResponseUnary::DependencyDropped(dep) => {
+                                    break Err(dep.to_concurrent_dependency_drop());
+                                }
                             },
                             Ok(None) => break Ok(diffs),
                             Err(_) => {
