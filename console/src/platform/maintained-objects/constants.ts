@@ -22,3 +22,15 @@ export const LOOKBACK_OPTIONS: Record<string, string> = {
   "360": "Past 6 hours",
   "1440": "Past 24 hours",
 };
+
+/**
+ * Lookback window options for the per-object freshness chart in the side
+ * drawer. Defaults to the last hour so the chart shows enough buckets to be
+ * useful but doesn't punch a 24h-wide history query on open.
+ */
+export const FRESHNESS_CHART_OPTIONS: Record<string, string> = {
+  "60": "Last hour",
+  "180": "Last 3 hours",
+  "360": "Last 6 hours",
+  "1440": "Last 24 hours",
+};

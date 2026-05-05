@@ -10,7 +10,12 @@
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 
+import {
+  buildQueryKeyPart,
+  buildRegionQueryKey,
+} from "~/api/buildQueryKeySchema";
 import { IPostgresInterval, isSystemId } from "~/api/materialize";
+import { fetchLagHistory } from "~/api/materialize/freshness/lagHistory";
 import {
   MAINTAINED_OBJECT_TYPES,
   MaintainedObjectType,
@@ -23,6 +28,11 @@ import {
   buildLagAggregateQuery,
   LagAggregateRow,
 } from "~/api/materialize/maintained-objects/lagAggregate";
+import {
+  buildLiveUpstreamDependenciesQuery,
+  fetchUpstreamDependenciesAtTime,
+  UpstreamDependencyRow,
+} from "~/api/materialize/maintained-objects/upstreamDependencies";
 import { fetchSourceStatistics } from "~/api/materialize/source/sourceStatistics";
 import {
   buildSubscribeQuery,
@@ -31,6 +41,8 @@ import {
 import { sourceQueryKeys } from "~/platform/sources/queries";
 import { useAllObjects } from "~/store/allObjects";
 import { sumPostgresIntervalMs } from "~/util";
+
+import { buildObjectFreshnessHistory } from "./freshnessHistory";
 
 /** Cluster the object is maintained on. `null` for tables, which aren't
  *  bound to a cluster. */
@@ -204,3 +216,134 @@ export function useObjectSourceStatistics(sourceId: string) {
     },
   });
 }
+
+const freshnessHistoryQueryKey = (objectId: string, lookbackMs: number) =>
+  [
+    ...buildRegionQueryKey("maintainedObjects"),
+    buildQueryKeyPart("freshnessHistory", { objectId, lookbackMs }),
+  ] as const;
+
+export function useObjectFreshnessHistory({
+  objectId,
+  lookbackMs,
+}: {
+  objectId: string | undefined;
+  lookbackMs: number;
+}) {
+  return useQuery({
+    queryKey: freshnessHistoryQueryKey(objectId ?? "", lookbackMs),
+    queryFn: async ({ queryKey, signal }) => {
+      const { rows } = await fetchLagHistory({
+        params: {
+          lookback: { type: "historical", lookbackMs },
+          objectIds: [objectId!],
+        },
+        requestOptions: { signal },
+        queryKey,
+      });
+      return buildObjectFreshnessHistory(rows, lookbackMs);
+    },
+    enabled: !!objectId,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+const upstreamDepsAtTimeQueryKey = (
+  objectId: string,
+  timestamp: string,
+  bucketSizeMs: number,
+) =>
+  [
+    ...buildRegionQueryKey("maintainedObjects"),
+    buildQueryKeyPart("upstreamDepsAtTime", {
+      objectId,
+      timestamp,
+      bucketSizeMs,
+    }),
+  ] as const;
+
+const useLiveUpstreamDependencies = (objectId: string | undefined) => {
+  const subscribe = React.useMemo(() => {
+    if (!objectId) return undefined;
+    return buildSubscribeQuery(buildLiveUpstreamDependenciesQuery(objectId), {
+      upsertKey: "id",
+    });
+  }, [objectId]);
+
+  return useSubscribe<UpstreamDependencyRow, UpstreamDependencyRow>({
+    subscribe,
+    upsertKey: (row) => row.data.id,
+    select: (row) => row.data,
+  });
+};
+
+const useUpstreamDependenciesAtTime = ({
+  objectId,
+  timestamp,
+  bucketSizeMs,
+}: {
+  objectId: string | undefined;
+  timestamp: Date;
+  bucketSizeMs: number;
+}) => {
+  return useQuery({
+    queryKey: upstreamDepsAtTimeQueryKey(
+      objectId ?? "",
+      timestamp.toISOString(),
+      bucketSizeMs,
+    ),
+    queryFn: async ({ queryKey, signal }) => {
+      const { rows } = await fetchUpstreamDependenciesAtTime({
+        objectId: objectId!,
+        timestamp,
+        bucketSizeMs,
+        queryKey,
+        requestOptions: { signal },
+      });
+      return rows;
+    },
+    enabled: !!objectId,
+    staleTime: Infinity,
+  });
+};
+
+export interface UseUpstreamDependenciesResult {
+  data: UpstreamDependencyRow[];
+  isLoading: boolean;
+  isError: boolean;
+}
+
+/**
+ * SUBSCRIBE-driven when `timestamp` is null (live), point-in-time query when
+ * locked to a past timestamp from the freshness chart.
+ */
+export const useUpstreamDependencies = ({
+  objectId,
+  timestamp,
+  bucketSizeMs,
+}: {
+  objectId: string | undefined;
+  timestamp: Date | null;
+  bucketSizeMs: number;
+}): UseUpstreamDependenciesResult => {
+  const live = useLiveUpstreamDependencies(timestamp ? undefined : objectId);
+  const atTime = useUpstreamDependenciesAtTime({
+    objectId: timestamp ? objectId : undefined,
+    timestamp: timestamp ?? new Date(0),
+    bucketSizeMs,
+  });
+
+  if (timestamp) {
+    return {
+      data: atTime.data ?? [],
+      isLoading: atTime.isLoading,
+      isError: atTime.isError,
+    };
+  }
+  return {
+    data: live.data,
+    isLoading: !live.snapshotComplete,
+    isError: live.isError,
+  };
+};

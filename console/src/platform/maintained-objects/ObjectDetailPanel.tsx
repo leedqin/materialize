@@ -10,6 +10,9 @@
 import { Box, Tab, TabList, TabPanel, TabPanels, Tabs } from "@chakra-ui/react";
 import React from "react";
 
+import { useTimePeriodMinutes } from "~/hooks/useTimePeriodSelect";
+
+import { FRESHNESS_CHART_OPTIONS } from "./constants";
 import { ObjectDetailsCard } from "./ObjectDetailsCard";
 import { ObjectFreshness } from "./ObjectFreshness";
 import { ObjectMetadata } from "./ObjectMetadata";
@@ -20,9 +23,20 @@ export interface ObjectDetailPanelProps {
 }
 
 export const ObjectDetailPanel = ({ item }: ObjectDetailPanelProps) => {
+  // Shared between the lag badge in the card and the freshness chart below.
+  const [freshnessLookbackMinutes, setFreshnessLookbackMinutes] =
+    useTimePeriodMinutes({
+      localStorageKey: "maintained-objects-freshness-chart-period",
+      defaultValue: "60",
+      timePeriodOptions: FRESHNESS_CHART_OPTIONS,
+    });
+
   return (
     <Box p={4}>
-      <ObjectDetailsCard item={item} />
+      <ObjectDetailsCard
+        item={item}
+        freshnessLookbackMinutes={freshnessLookbackMinutes}
+      />
       <Tabs mt={6}>
         <TabList mb={6}>
           <Tab>Metadata</Tab>
@@ -33,7 +47,11 @@ export const ObjectDetailPanel = ({ item }: ObjectDetailPanelProps) => {
             <ObjectMetadata item={item} />
           </TabPanel>
           <TabPanel px={0}>
-            <ObjectFreshness item={item} />
+            <ObjectFreshness
+              item={item}
+              timePeriodMinutes={freshnessLookbackMinutes}
+              setTimePeriodMinutes={setFreshnessLookbackMinutes}
+            />
           </TabPanel>
         </TabPanels>
       </Tabs>

@@ -7,25 +7,59 @@
 // the Business Source License, use of this software will be governed
 // by the Apache License, Version 2.0.
 
-import { Center, Text, useTheme } from "@chakra-ui/react";
+import { VStack } from "@chakra-ui/react";
 import React from "react";
 
-import { MaterializeTheme } from "~/theme";
+import { calculateBucketSizeFromLookback } from "~/api/materialize/freshness/lagHistory";
 
+import { CriticalPathGraph } from "./CriticalPathGraph";
+import { ObjectFreshnessChart } from "./ObjectFreshnessChart";
 import { MaintainedObjectListItem } from "./queries";
+import { UpstreamDependenciesTable } from "./UpstreamDependenciesTable";
 
 export interface ObjectFreshnessProps {
   item: MaintainedObjectListItem;
+  timePeriodMinutes: number;
+  setTimePeriodMinutes: React.Dispatch<React.SetStateAction<number>>;
 }
 
-// TODO: Add freshness graphs
-export const ObjectFreshness = (_props: ObjectFreshnessProps) => {
-  const { colors } = useTheme<MaterializeTheme>();
+export const ObjectFreshness = ({
+  item,
+  timePeriodMinutes,
+  setTimePeriodMinutes,
+}: ObjectFreshnessProps) => {
+  const [hoverTimestamp, setHoverTimestamp] = React.useState<Date | null>(null);
+  const [lockedTimestamp, setLockedTimestamp] = React.useState<Date | null>(
+    null,
+  );
+
+  const isLocked = lockedTimestamp !== null;
+  const selectedTimestamp = lockedTimestamp ?? hoverTimestamp;
+  const bucketSizeMs = calculateBucketSizeFromLookback(
+    timePeriodMinutes * 60 * 1000,
+  );
+
   return (
-    <Center py={10}>
-      <Text textStyle="text-base" color={colors.foreground.secondary}>
-        Freshness graphs placeholder
-      </Text>
-    </Center>
+    <VStack align="start" spacing={6} width="100%">
+      <ObjectFreshnessChart
+        objectId={item.id}
+        timePeriodMinutes={timePeriodMinutes}
+        setTimePeriodMinutes={setTimePeriodMinutes}
+        onTimestampSelect={isLocked ? undefined : setHoverTimestamp}
+        onTimestampLock={setLockedTimestamp}
+        selectedTimestamp={selectedTimestamp}
+        isLocked={isLocked}
+      />
+      <CriticalPathGraph
+        probe={item}
+        timestamp={lockedTimestamp}
+        bucketSizeMs={bucketSizeMs}
+      />
+      <UpstreamDependenciesTable
+        objectId={item.id}
+        timestamp={lockedTimestamp}
+        bucketSizeMs={bucketSizeMs}
+      />
+    </VStack>
   );
 };
