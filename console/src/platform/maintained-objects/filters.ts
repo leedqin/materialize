@@ -21,6 +21,8 @@ import { MaintainedObjectListItem } from "./queries";
  * a value filters to objects whose pMAX lag meets the threshold.
  */
 export const FRESHNESS_THRESHOLD_OPTIONS: Record<string, string> = {
+  "5": "pMAX ≥ 5 seconds",
+  "10": "pMAX ≥ 10 seconds",
   "60": "pMAX ≥ 1 minute",
   "300": "pMAX ≥ 5 minutes",
   "900": "pMAX ≥ 15 minutes",
@@ -125,9 +127,9 @@ export const FILTER_URL_SPECS: readonly FilterUrlSpec[] = [
     columnId: "freshness",
     fromUrl: (p) => {
       const v = p.get("freshness");
-      return v && v in FRESHNESS_THRESHOLD_OPTIONS
-        ? parseInt(v, 10)
-        : undefined;
+      if (!v) return undefined;
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) && n > 0 ? n : undefined;
     },
     toUrl: (v) =>
       typeof v === "number" ? { key: "freshness", value: v } : undefined,

@@ -9,11 +9,13 @@
 
 import {
   Box,
+  Button,
   Checkbox,
   HStack,
   Input,
-  Radio,
-  RadioGroup,
+  NumberInput,
+  NumberInputField,
+  Select,
   Text,
   useTheme,
   VStack,
@@ -26,9 +28,9 @@ import {
   MaintainedObjectType,
 } from "~/api/materialize/maintained-objects/constants";
 import { MaterializeTheme } from "~/theme";
+import { DurationUnit, fromSeconds, toSeconds } from "~/utils/format";
 
 import {
-  FRESHNESS_THRESHOLD_OPTIONS,
   HYDRATION_BUCKETS,
   HYDRATION_LABELS,
   HydrationBucket,
@@ -184,44 +186,72 @@ export const HydrationFilterPanel = ({ column }: { column: AnyColumn }) => (
 
 export const FreshnessFilterPanel = ({ column }: { column: AnyColumn }) => {
   const { colors } = useTheme<MaterializeTheme>();
-  const selected = column.getFilterValue() as number | undefined;
+  const filterValue = column.getFilterValue() as number | undefined;
+  const initial = filterValue ? fromSeconds(filterValue) : null;
 
-  const setValue = (value: number | undefined) => {
-    column.setFilterValue(value);
+  const [amount, setAmount] = React.useState(
+    initial ? String(initial.amount) : "",
+  );
+  const [unit, setUnit] = React.useState<DurationUnit>(
+    initial?.unit ?? "seconds",
+  );
+
+  const updateFilter = (nextAmount: string, nextUnit: DurationUnit) => {
+    const n = parseFloat(nextAmount);
+    column.setFilterValue(n > 0 ? toSeconds(n, nextUnit) : undefined);
+  };
+
+  const clearFilter = () => {
+    setAmount("");
+    column.setFilterValue(undefined);
   };
 
   return (
-    <RadioGroup
-      value={selected?.toString() ?? ""}
-      onChange={(value) =>
-        setValue(value === "" ? undefined : parseInt(value, 10))
-      }
-    >
-      <VStack alignItems="stretch" gap={0} py="2">
-        <HStack
-          px={4}
-          py={1}
-          _hover={{ bg: colors.background.secondary }}
-          cursor="pointer"
-          onClick={() => setValue(undefined)}
+    <VStack alignItems="stretch" px={4} py={3} spacing={2}>
+      <HStack spacing={2}>
+        <Text textStyle="text-ui-reg" color={colors.foreground.secondary}>
+          pMAX ≥
+        </Text>
+        <NumberInput
+          size="sm"
+          value={amount}
+          min={1}
+          focusBorderColor={colors.accent.brightPurple}
+          onChange={(next) => {
+            setAmount(next);
+            updateFilter(next, unit);
+          }}
+          maxW="20"
         >
-          <Radio value="" />
-          <Text textStyle="text-ui-reg">All freshness</Text>
-        </HStack>
-        {Object.entries(FRESHNESS_THRESHOLD_OPTIONS).map(([value, label]) => (
-          <HStack
-            key={value}
-            px={4}
-            py={1}
-            _hover={{ bg: colors.background.secondary }}
-            cursor="pointer"
-            onClick={() => setValue(parseInt(value, 10))}
-          >
-            <Radio value={value} />
-            <Text textStyle="text-ui-reg">{label}</Text>
-          </HStack>
-        ))}
-      </VStack>
-    </RadioGroup>
+          <NumberInputField placeholder="0" />
+        </NumberInput>
+        <Select
+          size="sm"
+          value={unit}
+          focusBorderColor={colors.accent.brightPurple}
+          onChange={(e) => {
+            const next = e.target.value as DurationUnit;
+            setUnit(next);
+            updateFilter(amount, next);
+          }}
+          maxW="32"
+        >
+          <option value="seconds">seconds</option>
+          <option value="minutes">minutes</option>
+          <option value="hours">hours</option>
+        </Select>
+      </HStack>
+      {filterValue !== undefined && (
+        <Button
+          size="xs"
+          variant="ghost"
+          alignSelf="flex-start"
+          color={colors.accent.brightPurple}
+          onClick={clearFilter}
+        >
+          Clear filter
+        </Button>
+      )}
+    </VStack>
   );
 };

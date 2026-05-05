@@ -12,12 +12,9 @@ import { Column, Table } from "@tanstack/react-table";
 import React from "react";
 
 import { MaintainedObjectType } from "~/api/materialize/maintained-objects/constants";
+import { fromSeconds } from "~/utils/format";
 
-import {
-  FRESHNESS_THRESHOLD_OPTIONS,
-  HYDRATION_LABELS,
-  HydrationBucket,
-} from "./filters";
+import { HYDRATION_LABELS, HydrationBucket } from "./filters";
 import { MaintainedObjectListItem } from "./queries";
 
 interface Chip {
@@ -71,12 +68,12 @@ const CHIP_SOURCES: ChipSource[] = [
     build: (column) => {
       const value = column.getFilterValue();
       if (typeof value !== "number") return [];
-      const label =
-        FRESHNESS_THRESHOLD_OPTIONS[String(value)] ?? `Freshness: ${value}s`;
+      const { amount, unit } = fromSeconds(value);
+      const unitLabel = amount === 1 ? unit.slice(0, -1) : unit;
       return [
         {
           key: column.id,
-          label,
+          label: `Freshness: ≥ ${amount} ${unitLabel}`,
           onRemove: () => column.setFilterValue(undefined),
         },
       ];

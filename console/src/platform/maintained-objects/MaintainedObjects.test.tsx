@@ -104,8 +104,6 @@ describe("MaintainedObjects", () => {
       screen.getAllByRole("link", { name: "compute_cluster" }),
     ).toHaveLength(2);
     expect(screen.getByRole("link", { name: "ingest_cluster" })).toBeVisible();
-
-    expect(screen.getByText("3 of 3 objects")).toBeVisible();
   });
 
   it("filters rows by object type", async () => {
@@ -123,7 +121,6 @@ describe("MaintainedObjects", () => {
 
     // Filter chip summarizes the active filter.
     expect(screen.getByText("Type: index")).toBeVisible();
-    expect(screen.getByText("1 of 3 objects")).toBeVisible();
   });
 
   it("filters rows by search term", async () => {

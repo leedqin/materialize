@@ -9,9 +9,17 @@
 
 import {
   Box,
+  Button,
   HStack,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuList,
   Skeleton,
   Spinner,
+  Tag,
+  TagCloseButton,
+  TagLabel,
   Text,
   Tooltip,
   useTheme,
@@ -37,9 +45,9 @@ import {
   useUniversalTable,
 } from "~/components/Table/useUniversalTable";
 import TextLink from "~/components/TextLink";
-import TimePeriodSelect from "~/components/TimePeriodSelect";
 import { useSyncObjectToSearchParams } from "~/hooks/useSyncObjectToSearchParams";
 import { useTimePeriodMinutes } from "~/hooks/useTimePeriodSelect";
+import { ChevronDownIcon, ClockIcon } from "~/icons";
 import {
   MainContentContainer,
   PageHeader,
@@ -80,7 +88,6 @@ const PAGE_SIZE = 25;
 
 // `mz_wallclock_global_lag_recent_history` retains up to 24 hours.
 const LOOKBACK_OPTIONS: Record<string, string> = {
-  "1": "Past 1 minute",
   "5": "Past 5 minutes",
   "15": "Past 15 minutes",
   "30": "Past 30 minutes",
@@ -88,6 +95,89 @@ const LOOKBACK_OPTIONS: Record<string, string> = {
   "180": "Past 3 hours",
   "360": "Past 6 hours",
   "1440": "Past 24 hours",
+};
+
+/** Compact label for the Live tag, mirroring the selected lookback window. */
+const LOOKBACK_SHORT_LABELS: Record<string, string> = {
+  "5": "5m",
+  "15": "15m",
+  "30": "30m",
+  "60": "1h",
+  "180": "3h",
+  "360": "6h",
+  "1440": "24h",
+};
+
+const WindowControl = ({
+  timePeriodMinutes,
+  setTimePeriodMinutes,
+}: {
+  timePeriodMinutes: number;
+  setTimePeriodMinutes: (val: number) => void;
+}) => {
+  const { colors } = useTheme<MaterializeTheme>();
+  const key = String(timePeriodMinutes);
+  const currentLabel = LOOKBACK_OPTIONS[key] ?? "Custom window";
+  const shortLabel = LOOKBACK_SHORT_LABELS[key];
+  // The smallest window shows real-time data; larger windows are a historical
+  // view
+  const isLive = key === "5";
+
+  return (
+    <HStack spacing="2">
+      <Menu>
+        <MenuButton
+          as={Button}
+          variant="secondary"
+          size="sm"
+          leftIcon={<ClockIcon height="3" width="3" />}
+          rightIcon={<ChevronDownIcon height="3" width="3" />}
+        >
+          {isLive ? (
+            "Please pick a lookback window"
+          ) : (
+            <>
+              <Text as="span" color={colors.foreground.secondary}>
+                Window:{" "}
+              </Text>
+              {currentLabel}
+            </>
+          )}
+        </MenuButton>
+        <MenuList>
+          {Object.entries(LOOKBACK_OPTIONS).map(([value, label]) => (
+            <MenuItem
+              key={value}
+              onClick={() => setTimePeriodMinutes(parseInt(value, 10))}
+            >
+              {label}
+            </MenuItem>
+          ))}
+        </MenuList>
+      </Menu>
+      {isLive ? (
+        <Tag size="sm" colorScheme="green" borderRadius="full" px="2">
+          <Box
+            w="1.5"
+            h="1.5"
+            borderRadius="full"
+            bg={colors.accent.green}
+            mr="1.5"
+          />
+          <TagLabel>Live</TagLabel>
+        </Tag>
+      ) : (
+        <Tag size="md" borderRadius="md" px="3" py="1">
+          <TagLabel>Window: {shortLabel ?? currentLabel}</TagLabel>
+          <TagCloseButton
+            aria-label="Reset window to Live"
+            onClick={() => setTimePeriodMinutes(5)}
+            ml="2"
+          />
+        </Tag>
+      )}
+    </HStack>
+  );
 };
 
 const ObjectNameCell = ({ row }: { row: MaintainedObjectListItem }) => {
@@ -261,7 +351,7 @@ const columns = [
       return <FreshnessCell row={info.row.original} ready={meta.lagReady} />;
     },
     meta: {
-      tooltip: `pMAX lag aggregated within the selected time period. Outdated above ${OUTDATED_THRESHOLD_SECONDS}s.`,
+      tooltip: `Peak lag observed in the selected Window. Outdated above ${OUTDATED_THRESHOLD_SECONDS}s.`,
       renderFilter: (column) => <FreshnessFilterPanel column={column} />,
     },
   }),
@@ -309,13 +399,12 @@ const columns = [
 ];
 
 const MaintainedObjects = () => {
-  const { colors } = useTheme<MaterializeTheme>();
   const location = useLocation();
   const regionSlug = useRegionSlug();
 
   const [timePeriodMinutes, setTimePeriodMinutes] = useTimePeriodMinutes({
     localStorageKey: "maintained-objects-time-period",
-    defaultValue: "15",
+    defaultValue: "5",
     timePeriodOptions: LOOKBACK_OPTIONS,
   });
 
@@ -339,7 +428,6 @@ const MaintainedObjects = () => {
     pageIndex: initialState.pageIndex ?? 0,
     pageSize: PAGE_SIZE,
   }));
-
   const setColumnFilters: OnChangeFn<ColumnFiltersState> = (updater) => {
     setColumnFiltersState(updater);
     setPagination((p) => ({ ...p, pageIndex: 0 }));
@@ -411,7 +499,6 @@ const MaintainedObjects = () => {
   }
 
   const filteredCount = table.getFilteredRowModel().rows.length;
-  const totalCount = objects?.length ?? 0;
   const hasFilters = tableState.columnFilters.length > 0;
   const showEmpty = objects && filteredCount === 0;
 
@@ -426,10 +513,9 @@ const MaintainedObjects = () => {
               onValueChange={table.setGlobalFilter}
               placeholder="Search objects..."
             />
-            <TimePeriodSelect
+            <WindowControl
               timePeriodMinutes={timePeriodMinutes}
               setTimePeriodMinutes={setTimePeriodMinutes}
-              options={LOOKBACK_OPTIONS}
             />
           </HStack>
           {hasFilters && <FilterChips table={table} />}
@@ -455,13 +541,6 @@ const MaintainedObjects = () => {
               data-testid="maintained-objects-table"
             />
             <TablePagination table={table} itemLabel="objects" />
-            <Text
-              textStyle="text-ui-reg"
-              color={colors.foreground.secondary}
-              alignSelf="flex-end"
-            >
-              {filteredCount} of {totalCount} objects
-            </Text>
           </>
         )}
       </VStack>
