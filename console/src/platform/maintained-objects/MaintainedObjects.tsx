@@ -213,7 +213,15 @@ const ClusterCell = ({
   if (!row.cluster) return "-";
   const path = absoluteClusterPath(regionSlug, row.cluster);
   return (
-    <TextLink as={RouterLink} to={path} textStyle="text-ui-med" noOfLines={1}>
+    <TextLink
+      as={RouterLink}
+      to={path}
+      target="_blank"
+      rel="noopener noreferrer"
+      textStyle="text-ui-med"
+      noOfLines={1}
+      onClick={(e) => e.stopPropagation()}
+    >
       {row.cluster.name}
     </TextLink>
   );
