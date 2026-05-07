@@ -26,6 +26,7 @@ interface McpConnectInstructionsProps extends BoxProps {
 const mcpConfigJson = (
   baseUrl: string,
   endpoint: "agents" | "developer",
+  token: string,
   opts?: { includeType?: boolean },
 ) =>
   JSON.stringify(
@@ -35,7 +36,7 @@ const mcpConfigJson = (
           ...(opts?.includeType && { type: "http" }),
           url: `${baseUrl}/api/mcp/${endpoint}`,
           headers: {
-            Authorization: "Basic <base64-token>",
+            Authorization: `Basic ${token}`,
           },
         },
       },
@@ -72,8 +73,9 @@ const McpConnectInstructions = ({
   const user = userStr || "<user>";
   const base64Command = `printf '${user}:<password>' | base64 -w0`;
 
+  const token = mcpBase64Token ?? "<base64-token>";
   const endpointUrl = `${baseUrl}/api/mcp/${endpoint}`;
-  const claudeCodeCliCommand = `claude mcp add --transport http materialize-${endpoint} ${endpointUrl} --header "Authorization: Basic <base64-token>"`;
+  const claudeCodeCliCommand = `claude mcp add --transport http materialize-${endpoint} ${endpointUrl} --header "Authorization: Basic ${token}"`;
 
   return (
     <VStack
@@ -90,24 +92,33 @@ const McpConnectInstructions = ({
       </Text>
 
       <VStack alignItems="stretch" spacing="2">
-        <Text textStyle="heading-xs">Step 1. Get your MCP token</Text>
-        <Text fontSize="sm" color={colors.foreground.secondary}>
+        <Text textStyle="heading-xs">
           {isCloud
-            ? "Create a new app password and copy the MCP Token, or encode an existing app password by running the following in your terminal:"
-            : "Use a role with login and password attributes. Run the following in your terminal:"}
+            ? "Step 1. Create an app password"
+            : "Step 1. Get your MCP token"}
         </Text>
-        <CopyableBox variant="default" contents={base64Command} />
-        {isCloud && mcpBase64Token && (
+        {isCloud ? (
           <Text fontSize="sm" color={colors.foreground.secondary}>
-            Your MCP token is available above, under the app password.
+            Click the <strong>Create app password</strong> button below to
+            generate a new app password and MCP token.
           </Text>
+        ) : (
+          <>
+            <Text fontSize="sm" color={colors.foreground.secondary}>
+              Use a role with login and password attributes. Run the following
+              in your terminal:
+            </Text>
+            <CopyableBox variant="default" contents={base64Command} />
+          </>
         )}
       </VStack>
 
       <VStack alignItems="stretch" spacing="2">
         <Text textStyle="heading-xs">Step 2. Connect your client</Text>
         <Text fontSize="sm" color={colors.foreground.secondary}>
-          Replace <code>&lt;base64-token&gt;</code> with the output from Step 1.
+          {isCloud
+            ? "Use this configuration with your MCP client. After creating an app password the token is filled in automatically."
+            : "Replace <base64-token> with the output from Step 1."}
         </Text>
         <TabbedCodeBlock
           tabs={[
@@ -127,7 +138,8 @@ const McpConnectInstructions = ({
                   </Text>
                   <CopyableBox
                     variant="default"
-                    contents={mcpConfigJson(baseUrl, endpoint, {
+                    multiline
+                    contents={mcpConfigJson(baseUrl, endpoint, token, {
                       includeType: true,
                     })}
                   />
@@ -143,7 +155,8 @@ const McpConnectInstructions = ({
                   </Text>
                   <CopyableBox
                     variant="default"
-                    contents={mcpConfigJson(baseUrl, endpoint)}
+                    multiline
+                    contents={mcpConfigJson(baseUrl, endpoint, token)}
                   />
                 </VStack>
               ),
@@ -158,7 +171,8 @@ const McpConnectInstructions = ({
                   </Text>
                   <CopyableBox
                     variant="default"
-                    contents={mcpConfigJson(baseUrl, endpoint)}
+                    multiline
+                    contents={mcpConfigJson(baseUrl, endpoint, token)}
                   />
                 </VStack>
               ),

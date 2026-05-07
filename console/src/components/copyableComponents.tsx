@@ -99,6 +99,8 @@ export interface CopyableBoxProps extends BoxProps {
   contents: string;
   variant?: "default" | "compact";
   maxHeight?: string;
+  /** Preserve newlines and render contents across multiple lines. */
+  multiline?: boolean;
   onCopy?: () => void;
 }
 /** Copyable component with a bg box but no line breaks  */
@@ -106,13 +108,14 @@ export const CopyableBox: React.FC<CopyableBoxProps> = ({
   contents,
   variant = "default",
   maxHeight,
+  multiline,
   onCopy,
   ...props
 }) => {
   const { colors } = useTheme<MaterializeTheme>();
   return (
     <HStack
-      alignItems="center"
+      alignItems={multiline ? "flex-start" : "center"}
       spacing={0}
       borderRadius="lg"
       bg={colors.background.secondary}
@@ -127,9 +130,9 @@ export const CopyableBox: React.FC<CopyableBoxProps> = ({
         py={2}
         flex={1}
         lineHeight="4"
-        whiteSpace="nowrap"
-        overflow="hidden"
-        textOverflow="ellipsis"
+        whiteSpace={multiline ? "pre" : "nowrap"}
+        overflow={multiline ? "auto" : "hidden"}
+        textOverflow={multiline ? undefined : "ellipsis"}
         minWidth={0}
         {...(maxHeight && {
           maxHeight,
