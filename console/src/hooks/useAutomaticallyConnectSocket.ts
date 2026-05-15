@@ -80,6 +80,9 @@ export const useAutomaticallyConnectSocket = <T extends object, R>({
 
   React.useEffect(() => {
     if (!subscribe || !request) return;
+    // Initial connect is handled by the manager's constructor; this effect only
+    // reacts to subsequent request changes.
+    if (previousRequest === undefined) return;
     if (previousRequest === request) return;
     if (currentEnvironment?.state !== "enabled") return;
 
