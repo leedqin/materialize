@@ -334,16 +334,14 @@ const EnvironmentRoutes = () => {
             }
           />
         )}
-        {flags["maintained-objects-ui-50"] && (
-          <Route
-            path="maintained-objects/*"
-            element={
-              <BaseLayout>
-                <MaintainedObjectsRoutes />
-              </BaseLayout>
-            }
-          />
-        )}
+        <Route
+          path="maintained-objects/*"
+          element={
+            <BaseLayout>
+              <MaintainedObjectsRoutes />
+            </BaseLayout>
+          }
+        />
 
         <Route path="query-history">
           <Route

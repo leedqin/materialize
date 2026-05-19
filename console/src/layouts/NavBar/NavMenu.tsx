@@ -117,14 +117,10 @@ const getNavItems = ({
               },
             ]
           : []),
-        ...(flags["maintained-objects-ui-50"]
-          ? [
-              {
-                label: "Objects",
-                href: `/regions/${regionSlug}/maintained-objects`,
-              },
-            ]
-          : []),
+        {
+          label: "Objects",
+          href: `/regions/${regionSlug}/maintained-objects`,
+        },
         {
           label: "Sources",
           href: `/regions/${regionSlug}/sources`,
