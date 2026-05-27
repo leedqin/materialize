@@ -5,6 +5,6 @@ exports[`queries > buildAvailableClusterReplicaSizesQuery produces the expected 
   "parameters": [
     "mz_%",
   ],
-  "sql": "select "size" from "mz_cluster_replica_sizes" where "size" not like $1",
+  "sql": "select "size" from "mz_cluster_replica_sizes" where "size" not like $1 order by "credits_per_hour", "size"",
 }
 `;

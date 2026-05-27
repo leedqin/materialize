@@ -25,6 +25,10 @@ export const buildAvailableClusterReplicaSizesQuery = () => {
       .select("size")
       // We don't want to show the mz_probe size in the UI
       .where("size", "not like", "mz_%")
+      // Order by actual size (credits_per_hour) rather than the catalog's
+      // insertion order so the dropdown goes smallest-to-largest.
+      .orderBy("credits_per_hour")
+      .orderBy("size")
   );
 };
 /**
