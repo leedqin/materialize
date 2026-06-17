@@ -95,6 +95,11 @@ interface IBaseAppConfig {
   environmentdWebsocketScheme: WebsocketScheme;
   // Whether query retries in react-query are enabled
   reactQueryRetriesEnabled: boolean;
+  // Address (host[:port]) of an optional serving layer that fans out the shared catalog
+  // subscribes. When set, those subscribes route through it instead of environmentd; unset
+  // means direct. Only PUBLIC catalog feeds use it — never per-user paths. See
+  // useCatalogSubscribeAddress.
+  servingLayerUrl?: string;
 }
 
 export class CloudAppConfig implements IBaseAppConfig {
@@ -200,6 +205,8 @@ export class CloudAppConfig implements IBaseAppConfig {
   // Whether the current environment requires user registration outside of the Console. This occurs in production
   // when the Console's 'sign up' button links to the Marketing site.
   requiresExternalRegistration = this.#consoleEnvironment === "production";
+
+  servingLayerUrl = buildConstants.servingLayerUrl;
 }
 
 export class SelfManagedAppConfig implements IBaseAppConfig {
@@ -248,6 +255,8 @@ export class SelfManagedAppConfig implements IBaseAppConfig {
   // Whether query retries are enabled.
   // TODO (password-auth): We should be using import.meta.vitest to determine this.
   reactQueryRetriesEnabled = true;
+
+  servingLayerUrl = buildConstants.servingLayerUrl;
 }
 
 /**

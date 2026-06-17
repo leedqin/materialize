@@ -58,6 +58,15 @@ function loadQueries(): CapturedQueries {
 const QUERIES: CapturedQueries = loadQueries();
 
 /**
+ * Comma-separated labels to exclude from the replay (SKIP_LABELS env). Used for
+ * before/after comparisons, e.g. simulating a query offloaded to the serving-layer
+ * cache by removing it from the mix and observing the effect on everything else.
+ */
+for (const label of (__ENV.SKIP_LABELS || "").split(",")) {
+  if (label && QUERIES[label]) delete QUERIES[label];
+}
+
+/**
  * How often each query polls (ms), matching `refetchInterval` in
  * `src/platform/clusters/queries.ts`. `Infinity` = fire once on cold load.
  */

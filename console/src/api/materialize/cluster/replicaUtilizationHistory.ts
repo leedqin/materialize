@@ -12,6 +12,7 @@ import { QueryKey } from "@tanstack/react-query";
 import { sql } from "kysely";
 
 import { executeSqlV2, queryBuilder } from "~/api/materialize";
+import { appConfig } from "~/config/AppConfig";
 
 import { fetchClusterDeploymentLineage } from "./clusterDeploymentLineage";
 
@@ -513,6 +514,87 @@ export type Bucket = {
   offlineEvents: OfflineEvent[] | null;
 };
 
+/** One bucket row, as produced by the SQL query or the serving-layer cache. */
+type UtilizationHistoryRow = {
+  bucketStart: Date;
+  bucketEnd: Date;
+  replicaId: string;
+  name: string | null;
+  clusterId: string | null;
+  size: string | null;
+  maxMemoryPercent: number | null;
+  maxMemoryAt: Date;
+  maxDiskPercent: number | null;
+  maxDiskAt: Date;
+  maxCpuPercent: number | null;
+  maxCpuAt: Date;
+  maxHeapPercent: number | null;
+  maxHeapAt: Date | null;
+  maxMemoryAndDiskPercent: number | null;
+  maxMemoryAndDiskMemoryPercent: number | null;
+  maxMemoryAndDiskDiskPercent: number | null;
+  maxMemoryAndDiskAt: Date;
+  offlineEvents: OfflineEvent[] | null;
+};
+
+/** The serving layer's rollup row: same fields, timestamps as epoch milliseconds. */
+type ServingLayerBucketRow = {
+  [K in keyof Omit<
+    UtilizationHistoryRow,
+    "offlineEvents"
+  >]: UtilizationHistoryRow[K] extends Date
+    ? number
+    : UtilizationHistoryRow[K] extends Date | null
+      ? number | null
+      : UtilizationHistoryRow[K];
+};
+
+/**
+ * Reads the bucketed rollups from the serving layer's fine-grained replica-metrics cache
+ * instead of recomputing them in Materialize. offlineEvents are not cached, so the chart
+ * omits offline markers on this path.
+ */
+async function fetchServingLayerUtilizationHistory({
+  params,
+  requestOptions,
+}: {
+  params: ReplicaUtilizationHistoryParameters;
+  requestOptions?: RequestInit;
+}): Promise<UtilizationHistoryRow[]> {
+  const search = new URLSearchParams({
+    bucketSizeMs: String(params.bucketSizeMs),
+    startDate: params.startDate,
+  });
+  if (params.endDate) {
+    search.set("endDate", params.endDate);
+  }
+  if (params.clusterIds && params.clusterIds.length > 0) {
+    search.set("clusterIds", params.clusterIds.join(","));
+  }
+  if (params.replicaId) {
+    search.set("replicaId", params.replicaId);
+  }
+  const response = await fetch(
+    `${appConfig.environmentdScheme}://${appConfig.servingLayerUrl}/cache/replica_utilization_history?${search}`,
+    requestOptions,
+  );
+  if (!response.ok) {
+    throw new Error(`Serving layer responded with ${response.status}`);
+  }
+  const { rows } = (await response.json()) as { rows: ServingLayerBucketRow[] };
+  return rows.map((row) => ({
+    ...row,
+    bucketStart: new Date(row.bucketStart),
+    bucketEnd: new Date(row.bucketEnd),
+    maxMemoryAt: new Date(row.maxMemoryAt),
+    maxDiskAt: new Date(row.maxDiskAt),
+    maxCpuAt: new Date(row.maxCpuAt),
+    maxHeapAt: row.maxHeapAt === null ? null : new Date(row.maxHeapAt),
+    maxMemoryAndDiskAt: new Date(row.maxMemoryAndDiskAt),
+    offlineEvents: null,
+  }));
+}
+
 export async function fetchReplicaUtilizationHistory({
   params,
   queryKey,
@@ -548,34 +630,49 @@ export async function fetchReplicaUtilizationHistory({
     return accum;
   }, [] as string[]);
 
-  let utilizationQuery = buildReplicaUtilizationHistoryQuery({
-    ...params,
-    clusterIds: clusterIdsFilter,
-  }).compile();
-
-  if (params.shouldUseConsoleClusterUtilizationOverviewView) {
-    utilizationQuery = buildConsoleClusterUtilizationOverviewQuery({
+  let rows: UtilizationHistoryRow[];
+  // When a serving layer is configured, the parameterized periods read its fine-grained
+  // cache (one shared upstream) instead of recomputing the rollups in Materialize. The
+  // 14-day overview keeps its indexed built-in path.
+  if (
+    appConfig.servingLayerUrl &&
+    !params.shouldUseConsoleClusterUtilizationOverviewView
+  ) {
+    rows = await fetchServingLayerUtilizationHistory({
+      params: { ...params, clusterIds: clusterIdsFilter },
+      requestOptions,
+    });
+  } else {
+    let utilizationQuery = buildReplicaUtilizationHistoryQuery({
+      ...params,
       clusterIds: clusterIdsFilter,
-      replicaId: params.replicaId,
     }).compile();
-  }
 
-  const utilizationRes = await executeSqlV2({
-    queries: utilizationQuery,
-    queryKey: queryKey,
-    requestOptions,
-    sessionVariables: {
-      // We use serializable because we don't care about strict seriailizability and to get consistent performance
-      transaction_isolation: "serializable",
-    },
-  });
+    if (params.shouldUseConsoleClusterUtilizationOverviewView) {
+      utilizationQuery = buildConsoleClusterUtilizationOverviewQuery({
+        clusterIds: clusterIdsFilter,
+        replicaId: params.replicaId,
+      }).compile();
+    }
+
+    const utilizationRes = await executeSqlV2({
+      queries: utilizationQuery,
+      queryKey: queryKey,
+      requestOptions,
+      sessionVariables: {
+        // We use serializable because we don't care about strict seriailizability and to get consistent performance
+        transaction_isolation: "serializable",
+      },
+    });
+    rows = utilizationRes.rows;
+  }
 
   const bucketsByReplicaId: Record<string, Bucket[]> = {};
 
   let minBucketStartMs = Number.POSITIVE_INFINITY;
   let maxBucketEndMs = Number.NEGATIVE_INFINITY;
 
-  for (const row of utilizationRes.rows) {
+  for (const row of rows) {
     minBucketStartMs = Math.min(minBucketStartMs, row.bucketStart.getTime());
     maxBucketEndMs = Math.max(maxBucketEndMs, row.bucketEnd.getTime());
 

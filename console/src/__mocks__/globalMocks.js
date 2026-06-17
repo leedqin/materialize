@@ -18,4 +18,5 @@ window.__FORCE_OVERRIDE_STACK__ = undefined;
 window.__IMPERSONATION_HOSTNAME__ = undefined;
 window.__SENTRY_ENABLED__ = "false";
 window.__SENTRY_RELEASE__ = "sentry-release";
+window.__SERVING_LAYER_URL__ = undefined;
 /* eslint-enable */

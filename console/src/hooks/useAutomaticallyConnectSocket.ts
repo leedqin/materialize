@@ -43,11 +43,13 @@ export const useAutomaticallyConnectSocket = <T extends object, R>({
   subscribe,
   request,
   getSessionVariables,
+  httpAddressOverride,
 }: {
   target: Connectable;
   subscribe?: SubscribeManager<T, R>;
   request?: SqlRequest;
   getSessionVariables?: (info: ConnectionInfo) => SessionVariables | undefined;
+  httpAddressOverride?: string;
 }): {
   reconnectionState: ReconnectionState;
 } => {
@@ -64,6 +66,7 @@ export const useAutomaticallyConnectSocket = <T extends object, R>({
       reconnectionStateAtom,
       {
         getSessionVariables: (info) => getSessionVariablesRef.current?.(info),
+        httpAddressOverride,
       },
     );
 
@@ -71,7 +74,7 @@ export const useAutomaticallyConnectSocket = <T extends object, R>({
       managerRef.current?.destroy();
       managerRef.current = null;
     };
-  }, [target, store, getSessionVariablesRef]);
+  }, [target, store, getSessionVariablesRef, httpAddressOverride]);
 
   const previousRequest = usePrevious(request);
 

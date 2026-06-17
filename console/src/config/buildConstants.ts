@@ -17,6 +17,7 @@ export function getBuildConstants() {
     mzConsoleImageTag: __MZ_CONSOLE_IMAGE_TAG__,
     sentryEnabled: __SENTRY_ENABLED__ === "true",
     sentryRelease: __SENTRY_RELEASE__,
+    servingLayerUrl: __SERVING_LAYER_URL__,
   };
 }
 
@@ -36,4 +37,5 @@ export const buildConstants: BuildConstants = isBrowser
       mzConsoleImageTag: undefined,
       sentryEnabled: false,
       sentryRelease: "sentry-release",
+      servingLayerUrl: undefined,
     };

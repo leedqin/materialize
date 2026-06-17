@@ -66,6 +66,7 @@ function buildDefinitions() {
       ),
       __SENTRY_ENABLED__: JSON.stringify(process.env.SENTRY_ENABLED),
       __SENTRY_RELEASE__: JSON.stringify(getSentryRelease()),
+      __SERVING_LAYER_URL__: JSON.stringify(process.env.SERVING_LAYER_URL),
     };
   }
   return {
@@ -79,6 +80,7 @@ function buildDefinitions() {
     __MZ_CONSOLE_IMAGE_TAG__: JSON.stringify(process.env.MZ_CONSOLE_IMAGE_TAG),
     __SENTRY_ENABLED__: JSON.stringify(process.env.SENTRY_ENABLED || false),
     __SENTRY_RELEASE__: JSON.stringify(process.env.SENTRY_RELEASE || null),
+    __SERVING_LAYER_URL__: JSON.stringify(process.env.SERVING_LAYER_URL),
   };
 }
 

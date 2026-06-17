@@ -11,6 +11,7 @@ import { PrimitiveAtom, useSetAtom } from "jotai";
 import { RawBuilder } from "kysely";
 import React from "react";
 
+import { useAppConfig } from "~/config/useAppConfig";
 import { useAutomaticallyConnectSocket } from "~/hooks/useAutomaticallyConnectSocket";
 import { getStore } from "~/jotai";
 import { useCurrentEnvironmentHttpAddress } from "~/store/environments";
@@ -117,6 +118,7 @@ export function useGlobalUpsertSubscribe<T extends object, R = SubscribeRow<T>>(
 ) {
   const setValue = useSetAtom(options.atom);
   const httpAddress = useCurrentEnvironmentHttpAddress();
+  const { servingLayerUrl } = useAppConfig();
   const request = useSubscribeRequest(options.subscribe);
   const [subscribe] = React.useState(
     new SubscribeManager<T, R>({
@@ -136,6 +138,7 @@ export function useGlobalUpsertSubscribe<T extends object, R = SubscribeRow<T>>(
     target: subscribe,
     subscribe,
     request,
+    httpAddressOverride: servingLayerUrl,
   });
 
   React.useEffect(() => {

@@ -35,6 +35,9 @@ export interface WebsocketConnectionManagerOptions {
   baseDelayMs?: number;
   maxDelayMs?: number;
   getSessionVariables?: (info: ConnectionInfo) => SessionVariables | undefined;
+  // When set, connect here instead of the current environment's address. Used to route the
+  // shared catalog subscribes through the serving layer while leaving health gating intact.
+  httpAddressOverride?: string;
 }
 
 const DEFAULT_OPTIONS = {
@@ -57,9 +60,15 @@ export interface ReconnectionState {
 }
 
 type ResolvedOptions = Required<
-  Omit<WebsocketConnectionManagerOptions, "getSessionVariables">
+  Omit<
+    WebsocketConnectionManagerOptions,
+    "getSessionVariables" | "httpAddressOverride"
+  >
 > &
-  Pick<WebsocketConnectionManagerOptions, "getSessionVariables">;
+  Pick<
+    WebsocketConnectionManagerOptions,
+    "getSessionVariables" | "httpAddressOverride"
+  >;
 
 type JotaiStore = ReturnType<typeof createStore>;
 
@@ -153,7 +162,9 @@ export class WebsocketConnectionManager {
 
     this.isHealthy = nowHealthy;
 
-    if (currentEnvironment?.state === "enabled") {
+    if (this.options.httpAddressOverride) {
+      this.currentHttpAddress = this.options.httpAddressOverride;
+    } else if (currentEnvironment?.state === "enabled") {
       this.currentHttpAddress = currentEnvironment.httpAddress;
     }
 
