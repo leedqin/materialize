@@ -59,6 +59,7 @@ const TIME_PERIOD_OPTIONS = {
 };
 
 const HOUR_IN_MS = 60 * 60_000;
+const MAX_TOOLTIP_LINES = 10;
 
 const TooltipLabel = ({
   dataPoint,
@@ -196,6 +197,7 @@ const FreshnessGraphWrapper = ({
         startTime={startTime}
         endTime={endTime}
         renderTooltipLabel={TooltipLabel}
+        maxTooltipLines={MAX_TOOLTIP_LINES}
       />
       <ClusterFreshnessTable data={currentData} />
     </VStack>
