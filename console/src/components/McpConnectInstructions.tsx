@@ -21,7 +21,10 @@ import React from "react";
 
 import { useAppConfig } from "~/config/useAppConfig";
 import docUrls from "~/mz-doc-urls.json";
-import { currentEnvironmentState } from "~/store/environments";
+import {
+  currentEnvironmentState,
+  useEnvironmentGate,
+} from "~/store/environments";
 import { MaterializeTheme } from "~/theme";
 import { obfuscateSecret } from "~/utils/format";
 
@@ -34,6 +37,8 @@ import TextLink from "./TextLink";
 
 interface McpConnectInstructionsProps extends BoxProps {
   userStr: string;
+  /** Self-managed deployment with OIDC enabled; gets the browser OAuth flow. */
+  oidcEnabled?: boolean;
   /** Pre-computed Base64 token for MCP configuration (cloud only). */
   mcpBase64Token?: string;
   /** Callback to generate a new MCP token (creates an app password). */
@@ -44,6 +49,7 @@ interface McpConnectInstructionsProps extends BoxProps {
 
 const McpConnectInstructions = ({
   userStr,
+  oidcEnabled = false,
   mcpBase64Token,
   onGenerateToken,
   isGeneratingToken,
@@ -53,6 +59,13 @@ const McpConnectInstructions = ({
   const [currentEnvironment] = useAtom(currentEnvironmentState);
   const appConfig = useAppConfig();
   const isCloud = appConfig.mode === "cloud";
+  // Envs >= 26.30.0 advertise OAuth via RFC 9728, so MCP clients log in through
+  // the browser instead of using a Basic-auth token. Applies to cloud (Frontegg)
+  // and self-managed with OIDC. The version must match region-controller's gate
+  // for `--frontegg-oauth-issuer-url` (precedence >= 26.30.0). Older/pre-release
+  // envs, and self-managed without OIDC, stay on the token flow.
+  const oauthAvailable =
+    useEnvironmentGate("26.30.0") === true && (isCloud || oidcEnabled);
 
   const envAddress =
     currentEnvironment?.state === "enabled"
@@ -75,7 +88,9 @@ const McpConnectInstructions = ({
   const base64Command = `printf '${user}:<password>' | base64 -w0`;
 
   const claudeCodeCliCommand = (ep: "agent" | "developer") =>
-    `claude mcp add --transport http "materialize-${ep}" \\\n  "${baseUrl}/api/mcp/${ep}" \\\n  --header "Authorization: Basic <mcp-token>"`;
+    oauthAvailable
+      ? `claude mcp add --transport http "materialize-${ep}" \\\n  "${baseUrl}/api/mcp/${ep}"`
+      : `claude mcp add --transport http "materialize-${ep}" \\\n  "${baseUrl}/api/mcp/${ep}" \\\n  --header "Authorization: Basic <mcp-token>"`;
 
   return (
     <VStack alignItems="stretch" spacing="6" p="6" {...props}>
@@ -84,76 +99,86 @@ const McpConnectInstructions = ({
         built-in MCP server.
       </Text>
 
-      <VStack alignItems="stretch" spacing="4">
-        <Text textStyle="heading-xs">1. Get your MCP token</Text>
+      {!oauthAvailable && (
+        <VStack alignItems="stretch" spacing="4">
+          <Text textStyle="heading-xs">1. Get your MCP token</Text>
 
-        {isCloud && onGenerateToken && (
-          <VStack alignItems="stretch" spacing="4">
-            <Text fontSize="sm" color={colors.foreground.secondary}>
-              Generate a new token:
-            </Text>
-            {isGeneratingToken ? (
-              <Flex alignItems="center" color={colors.foreground.secondary}>
-                <Spinner size="sm" mr={2} />
-                <Text fontSize="sm">Generating token...</Text>
-              </Flex>
-            ) : mcpBase64Token ? (
-              <VStack alignItems="stretch" spacing="1">
-                <SecretCopyableBox
-                  label="mcpToken"
-                  contents={mcpBase64Token}
-                  obfuscatedContent={obfuscateSecret(mcpBase64Token)}
-                  overflow="hidden"
-                  minWidth={0}
-                />
-                <Text
-                  fontSize="xs"
-                  color={colors.foreground.secondary}
-                  lineHeight="tall"
-                >
-                  Copy this somewhere safe. Tokens cannot be displayed after
-                  initial creation.
-                </Text>
-              </VStack>
-            ) : (
-              <>
-                <Button
-                  onClick={onGenerateToken}
-                  variant="primary"
-                  size="sm"
-                  alignSelf="flex-start"
-                >
-                  Generate personal MCP token
-                </Button>
-                <Text fontSize="xs" color={colors.foreground.secondary}>
-                  For service accounts, create a{" "}
-                  <TextLink href="/access/app-passwords">
-                    service app password
-                  </TextLink>{" "}
-                  and Base64-encode it below.
-                </Text>
-              </>
+          {isCloud && onGenerateToken && (
+            <VStack alignItems="stretch" spacing="4">
+              <Text fontSize="sm" color={colors.foreground.secondary}>
+                Generate a new token:
+              </Text>
+              {isGeneratingToken ? (
+                <Flex alignItems="center" color={colors.foreground.secondary}>
+                  <Spinner size="sm" mr={2} />
+                  <Text fontSize="sm">Generating token...</Text>
+                </Flex>
+              ) : mcpBase64Token ? (
+                <VStack alignItems="stretch" spacing="1">
+                  <SecretCopyableBox
+                    label="mcpToken"
+                    contents={mcpBase64Token}
+                    obfuscatedContent={obfuscateSecret(mcpBase64Token)}
+                    overflow="hidden"
+                    minWidth={0}
+                  />
+                  <Text
+                    fontSize="xs"
+                    color={colors.foreground.secondary}
+                    lineHeight="tall"
+                  >
+                    Copy this somewhere safe. Tokens cannot be displayed after
+                    initial creation.
+                  </Text>
+                </VStack>
+              ) : (
+                <>
+                  <Button
+                    onClick={onGenerateToken}
+                    variant="primary"
+                    size="sm"
+                    alignSelf="flex-start"
+                  >
+                    Generate personal MCP token
+                  </Button>
+                  <Text fontSize="xs" color={colors.foreground.secondary}>
+                    For service accounts, create a{" "}
+                    <TextLink href="/access/app-passwords">
+                      service app password
+                    </TextLink>{" "}
+                    and Base64-encode it below.
+                  </Text>
+                </>
+              )}
+            </VStack>
+          )}
+
+          <VStack alignItems="stretch" spacing="2">
+            {isCloud && (
+              <Text fontSize="sm" color={colors.foreground.secondary}>
+                Or Base64-encode an existing app password:
+              </Text>
             )}
+            {!isCloud && (
+              <Text fontSize="sm" color={colors.foreground.secondary}>
+                Base64-encode your username and password:
+              </Text>
+            )}
+            <CopyableBox variant="default" contents={base64Command} />
           </VStack>
-        )}
-
-        <VStack alignItems="stretch" spacing="2">
-          {isCloud && (
-            <Text fontSize="sm" color={colors.foreground.secondary}>
-              Or Base64-encode an existing app password:
-            </Text>
-          )}
-          {!isCloud && (
-            <Text fontSize="sm" color={colors.foreground.secondary}>
-              Base64-encode your username and password:
-            </Text>
-          )}
-          <CopyableBox variant="default" contents={base64Command} />
         </VStack>
-      </VStack>
+      )}
 
       <VStack alignItems="stretch" spacing="4">
-        <Text textStyle="heading-xs">2. Connect your client</Text>
+        <Text textStyle="heading-xs">
+          {oauthAvailable ? "Connect your client" : "2. Connect your client"}
+        </Text>
+        {oauthAvailable && (
+          <Text fontSize="sm" color={colors.foreground.secondary}>
+            When you add the server, your browser will open to sign in to
+            Materialize.
+          </Text>
+        )}
         <Text fontSize="sm" color={colors.foreground.secondary}>
           See the{" "}
           <TextLink
