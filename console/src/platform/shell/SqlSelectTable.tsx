@@ -181,6 +181,7 @@ const SqlSelectTable = ({
   const hasResults = paginatedRows.length > 0;
 
   if (colNames.length === 0) {
+    const totalRows = rows?.length ?? 0;
     return (
       <Flex
         px="4"
@@ -189,7 +190,11 @@ const SqlSelectTable = ({
         borderColor={colors.border.secondary}
         borderRadius="lg"
       >
-        <Text textStyle="monospace">No results</Text>
+        <Text textStyle="monospace">
+          {totalRows > 0
+            ? `(${totalRows} ${totalRows === 1 ? "row" : "rows"})`
+            : "No results"}
+        </Text>
       </Flex>
     );
   }
